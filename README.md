@@ -3,6 +3,8 @@
 This application processes receipt images, extracts text using OCR, and parses relevant fields such as date, total amount, and tax. Final results are exported to Excel.
 
 ## 📂 Folder Structure
+
+```
 FIS_APP/
 ├── dist/             # Compiled JS output
 ├── output/           # Generated Excel files
@@ -21,6 +23,7 @@ FIS_APP/
 ├── package.json      # Project metadata
 ├── tsconfig.json     # TypeScript config
 └── tur.traineddata   # Turkish OCR model
+```
 
 ## 🛠️ Features
 
@@ -38,3 +41,17 @@ npm install
 npm run dev        # with nodemon
 npm run build      # compile to dist/
 npm run start      # run built app
+```
+
+## 📚 API Documentation
+
+Swagger available at: `http://localhost:<PORT>/docs`
+
+---
+
+## 🔧 Requirements
+
+- Node.js 18+
+- Python 3.x
+- Tesseract installed
+- `tur.traineddata` copied into Tesseract's `tessdata` directory

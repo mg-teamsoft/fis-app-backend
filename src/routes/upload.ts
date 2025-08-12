@@ -15,12 +15,33 @@ import {
   parseTotalAmount,
   parseTransactionType,
   parsePaymentType,
-  isMatching
+  isMatching,
+  normalizeAmounts,
+  extractAmountsFromLines
 } from '../utils/receiptParser'; // Ayrıştırma metodlarını import et
 import { Product, KDVInfo, ReceiptData } from '../types/receiptTypes';
+import { callGoogleVisionOCR, callGoogleVisionOCRLineJoined } from '../services/googleVisionService';
+import { checkAnomaly } from '../utils/checkAnomaly';
+import { extractValueNearLabel, extractKdvRate } from '../utils/receiptValueExtractor';
+import { fuzzyFind } from '../utils/fuzzySearch';
+import { extractTextFromImage } from '../services/awsTextractService';
+import { extractReceiptWithOpenAI } from '../services/openaiToReceiptDataService';
 
 const upload = multer({ dest: config.uploadDir });
 const router = Router();
+
+// Referans kelimeler (template1 keywords)
+const fuzzyKdvKeywords = [
+  'toplam kdv',
+  'kdv',
+];
+
+// Referans kelimeler (template1 keywords)
+const fuzzyTotalKeywords = [
+  'genel toplam',
+  'toplam tutar',
+  'toplam',
+];
 
 /**
  * @swagger
@@ -81,61 +102,32 @@ router.post('/', upload.array('receipts'), async (req, res) => {
     };
 
     try {
-      const rawText = await runPythonOCR(file.path, config.defaultLang);
+      // const rawText = await runPythonOCR(file.path, config.defaultLang);
+      // parse receipt lines offline
+      // parseReceiptLines(rawText, extractedData);
 
-      const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
-      for (const line of lines) {
-        console.log('line: ', line);
-        const lowerLine = line.toLocaleLowerCase();
-
-        // Firma Adı
-        if (extractedData.businessName == null && isMatching(lowerLine, receiptRegexConfig.businessNameIndicators)) {
-          console.log('lowerLine: ', lowerLine);
-          extractedData.businessName = parseBusinessName(lines, receiptRegexConfig);
-        }
-
-        // Tarih
-        if (extractedData.transactionDate == null && isMatching(line, receiptRegexConfig.datePatterns)) {
-          extractedData.transactionDate = parseTransactionDate(line, receiptRegexConfig);
-          console.log('extractedData.transactionDate: ', extractedData.transactionDate);
-        }
-
-        // Fiş No
-        if (extractedData.receiptNumber == null && isMatching(line, receiptRegexConfig.receiptNoPatterns)) {
-          extractedData.receiptNumber = parseReceiptNumber(line, receiptRegexConfig);
-        }
-
-        // Kdv Tutarı
-        if (extractedData.kdvAmount == null && isMatching(line, receiptRegexConfig.kdvPatterns)) {
-          extractedData.kdvAmount = parseKdvAmount(line, receiptRegexConfig);
-        }
-        
-        // Toplam Tutar
-        if (extractedData.totalAmount == null && isMatching(line, receiptRegexConfig.totalPatterns)) {
-          extractedData.totalAmount = parseTotalAmount(line, receiptRegexConfig);
-        }
-
-        // İşlem Türü
-        if (extractedData.transactionType == null && isMatching(line, receiptRegexConfig.transactionTypePatterns)) {
-          extractedData.transactionType = parseTransactionType(line, receiptRegexConfig);
-        }
-
-        // Ödeme Şekli
-        if (extractedData.paymentType == null && isMatching(line, receiptRegexConfig.paymentTypePatterns)) {
-          extractedData.paymentType = parsePaymentType(line, receiptRegexConfig);
-        }
-      }
-
-      console.log('extractedData: ');
+      console.log('extractedData from offline OCR: ');
       console.log(extractedData);
+
+      // Step 5 – Anomaly check & Cloud Vision fallback
+      if (checkAnomaly(extractedData)) {
+        console.warn(`Anomaly detected in ${file.originalname}. Retrying with AWS Textract OCR...`);
+        const lines = await extractTextFromImage(file.path);
+        console.log(lines);
+
+        // `lines` = your AWS Textract lines (string[])
+        const openAiExtData = await extractReceiptWithOpenAI(lines);
+        console.log('extractedData from Open Ai Prompt: ');
+        console.log(openAiExtData);
+      }
 
       // rows.push([date || '', '', description || '', '', '', '', '', '', '', total || '', '', '', '']);
       fs.unlink(file.path, () => { });
+      console.log('finished processing file: ', file.filename)
     } catch (err) {
       console.error('OCR failed for one file:', err);
       fs.unlink(file.path, () => { });
     }
-    console.log('finished processing file: ', file.filename)
   }
 
   jobStore[jobId] = { status: 'pending', rows };
@@ -143,6 +135,55 @@ router.post('/', upload.array('receipts'), async (req, res) => {
 
   res.json({ jobId, message: 'Batch processing started' });
 });
+
+function parseReceiptLines(rawText: string, extractedData: ReceiptData) {
+  const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    console.log('line: ', line);
+    const lowerLine = line.toLocaleLowerCase();
+
+    // Firma Adı
+    if (extractedData.businessName == null && isMatching(lowerLine, receiptRegexConfig.businessNameIndicators)) {
+      extractedData.businessName = parseBusinessName(lines, receiptRegexConfig);
+    }
+
+    // Tarih
+    if (extractedData.transactionDate == null && isMatching(line, receiptRegexConfig.datePatterns)) {
+      extractedData.transactionDate = parseTransactionDate(line, receiptRegexConfig);
+    }
+
+    // Fiş No
+    if (extractedData.receiptNumber == null && isMatching(line, receiptRegexConfig.receiptNoPatterns)) {
+      extractedData.receiptNumber = parseReceiptNumber(line, receiptRegexConfig);
+    }
+
+    // Kdv Tutarı
+    // if (extractedData.kdvAmount == null && isMatching(line, receiptRegexConfig.kdvPatterns)) {
+    if (!extractedData.kdvAmount && fuzzyFind(lowerLine, fuzzyKdvKeywords, config.fuzzyThreshold)) {
+      const normalized = normalizeAmounts(line);
+      extractedData.kdvAmount = parseKdvAmount(normalized, receiptRegexConfig);
+    }
+
+    // Toplam Tutar
+    // if (extractedData.totalAmount == null && isMatching(line, receiptRegexConfig.totalPatterns)) {
+    if (!extractedData.totalAmount && fuzzyFind(lowerLine, fuzzyTotalKeywords, config.fuzzyThreshold)) {
+      const normalized = normalizeAmounts(line);
+      console.log('normalized: ', normalized);
+      extractedData.totalAmount = parseTotalAmount(normalized, receiptRegexConfig);
+    }
+
+    // İşlem Türü
+    if (extractedData.transactionType == null && isMatching(line, receiptRegexConfig.transactionTypePatterns)) {
+      extractedData.transactionType = parseTransactionType(line, receiptRegexConfig);
+    }
+
+    // Ödeme Şekli
+    if (extractedData.paymentType == null && isMatching(line, receiptRegexConfig.paymentTypePatterns)) {
+      extractedData.paymentType = parsePaymentType(line, receiptRegexConfig);
+    }
+  }
+}
 
 /**
  * Ham OCR metninden fiş bilgilerini ayrıştırır.
