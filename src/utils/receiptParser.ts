@@ -1,6 +1,7 @@
 // receiptParsers.ts
 import { ReceiptRegexConfig } from '../configs/receiptConfig';
 import { Product, KDVInfo, ReceiptData } from '../types/receiptTypes'; // Arayüzleri ocr_processor'dan import edin
+import { normalizeAmount } from './amountNormalizer';
 
 // TypeScript veri tipleri (arayüzler) buraya taşınabilir, ancak şimdilik ocr_processor.ts'te kalsın
 
@@ -62,7 +63,7 @@ export function parseBusinessName(lines: string[], config: ReceiptRegexConfig): 
             }
             // 4. Satır yeterince uzun ve sadece sayılardan oluşmuyorsa
             if (currentLine.length > 5 && !/^\d+$/.test(currentLine) && !/^\d{1,2}[./\\\s-]\d{1,2}[./\\\s-]\d{2,4}$/.test(currentLine)) {
-                 currentConfidence += 1;
+                currentConfidence += 1;
             }
 
             // En yüksek güven puanına sahip satırı başlangıç olarak seç
@@ -102,7 +103,7 @@ export function parseBusinessName(lines: string[], config: ReceiptRegexConfig): 
             let cleanedLine = currentLine.toUpperCase().replace(/[^A-ZÇĞİÖŞÜ\s&.,]/g, ' ').trim();
 
             if (cleanedLine.length > 3) {
-                 potentialBusinessNameBlock.push(cleanedLine);
+                potentialBusinessNameBlock.push(cleanedLine);
             }
         }
     }
@@ -225,9 +226,9 @@ export function parseTransactionDate(rawText: string, config: ReceiptRegexConfig
                     tempDate = new Date(`${yearString}-${monthString}-${dayString}`);
 
                     const isValidDate = !isNaN(tempDate.getTime()) &&
-                                        tempDate.getFullYear() === parseInt(yearString) &&
-                                        (tempDate.getMonth() + 1) === parseInt(monthString) &&
-                                        tempDate.getDate() === parseInt(dayString);
+                        tempDate.getFullYear() === parseInt(yearString) &&
+                        (tempDate.getMonth() + 1) === parseInt(monthString) &&
+                        tempDate.getDate() === parseInt(dayString);
 
                     const currentYear = new Date().getFullYear();
                     const lowerBoundYear = currentYear - 2; // Son 2 yıl
@@ -378,7 +379,7 @@ function cleanAndParseNumber(numStr: string): number | null {
         // veya direkt kesebiliriz. Burada kesmeyi tercih edelim ki parse hataları olmasın.
         cleanedNum = cleanedNum.substring(0, cleanedNum.length - 1);
     }
-    
+
     // Eğer string sadece binlik ayraç içeriyorsa ama ondalık kısım yoksa (örn: "1.250")
     // ve bu bir tam sayıysa, noktaları kaldırıp parse edelim.
     // Eğer son nokta ondalık ayraçsa, o kalsın.
@@ -450,7 +451,7 @@ export function parseTotalAmount(rawText: string, config: ReceiptRegexConfig): n
         if (candidates.length > 0) {
             const filteredCandidates = candidates.filter(num => num > 0); // Sadece pozitif sayıları al
             if (filteredCandidates.length > 0) {
-                 // En büyük sayıyı seç. Bu, 7 ve 275.00 arasında 275.00'ı seçecektir.
+                // En büyük sayıyı seç. Bu, 7 ve 275.00 arasında 275.00'ı seçecektir.
                 bestTotalAmount = Math.max(...filteredCandidates);
             }
         }
@@ -516,7 +517,7 @@ export function parsePaymentType(rawText: string, config: ReceiptRegexConfig): n
             } else if (matchedKeyword.includes("NAKİT") || matchedKeyword.includes("PEŞİN") || matchedKeyword.includes("CASH")) {
                 return 2; // NAKİT
             }
-        }   
+        }
     }
     return null; // Hiçbir ödeme tipi bulunamadıysa
 }
@@ -526,4 +527,62 @@ export function parsePaymentType(rawText: string, config: ReceiptRegexConfig): n
  */
 export function isMatching(rawText: string, patterns: RegExp[]): boolean {
     return patterns.some(pattern => pattern.test(rawText));
+}
+
+/**
+ * normalize space betwen digits of an amount
+ */
+export function normalizeAmounts(line: string): string {
+    let result = line;
+
+    // Adım 1: Sayılar arasında boşluk varsa kaldır (örneğin "1. 253, 43" gibi)
+    result = result.replace(/(\d)\s+[\.,]?\s*(\d{3})\s*[,\.]?\s*(\d{2})/g, '$1.$2,$3');
+
+    // Adım 2: 3 haneli olmayan sayılar için ("12 , 50" gibi)
+    result = result.replace(/(\d+)\s*,\s*(\d{2})/g, '$1,$2');
+
+    // Adım 3: 3 haneli tam sayı varsa ve arada boşluk varsa ("3 . 400")
+    result = result.replace(/(\d+)\s*\.\s*(\d{3})/g, '$1.$2');
+
+    // Fazla boşlukları temizle
+    return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+export function extractAmountsFromLines(lines: string[]) {
+    let kdvRate: number | null = null;
+    const amountStrings: string[] = [];
+
+    const amountRegex = /^[*]?[0-9]{1,3}(\.[0-9]{3})*,[0-9]{2}$/;
+
+    for (const line of lines) {
+        // Extract KDV rate
+        const rateMatch = line.match(/%[\s]?(\d{1,2})/);
+        if (rateMatch && !kdvRate) {
+            kdvRate = parseInt(rateMatch[1], 10);
+        }
+
+        // Clean and check if line matches amount pattern
+        const cleaned = line.replace(/[^\d,\.]/g, '').trim();
+
+        if (amountRegex.test(cleaned)) {
+            amountStrings.push(cleaned);
+        }
+    }
+
+    // Deduplicate and sort amounts as numbers (descending)
+    const sorted = [...new Set(amountStrings)].sort((a, b) => {
+        const numA = parseFloat(a.replace(/\./g, '').replace(',', '.'));
+        const numB = parseFloat(b.replace(/\./g, '').replace(',', '.'));
+        return numB - numA;
+    });
+
+    const totalAmount = sorted[0] ?? null;
+    const kdvAmount = sorted.length > 1 ? sorted[sorted.length - 1] : null;
+    
+    console.log('kdvRate:', kdvRate, ' totalAmount: ', totalAmount, ' kdvAmount:', kdvAmount)
+    return {
+        kdvRate,
+        totalAmount, // string, e.g. "2.129,00"
+        kdvAmount    // string, e.g. "193,55"
+    };
 }

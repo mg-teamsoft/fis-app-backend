@@ -6,6 +6,7 @@ const config = {
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   outputDir: process.env.OUTPUT_DIR || 'output',
   defaultLang: process.env.OCR_LANG || 'tur+eng',
+  fuzzyThreshold: parseFloat(process.env.THRESHOLD || '0.2'),
 };
 
 export default config;
