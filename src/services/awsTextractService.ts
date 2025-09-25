@@ -4,10 +4,12 @@ import {
   DetectDocumentTextCommand,
 } from '@aws-sdk/client-textract';
 import { readFileSync } from 'fs';
+import { awsConfig } from '../configs/aws';
 
-const client = new TextractClient({ region: 'eu-central-1' }); // choose your region
+const client = new TextractClient({ region: awsConfig.region }); // choose your region
 
 export async function extractTextFromImage(imagePath: string): Promise<string[]> {
+  console.log('Retrying with AWS Textract OCR...');
   const imageBytes = readFileSync(imagePath);
 
   const command = new DetectDocumentTextCommand({
@@ -23,5 +25,6 @@ export async function extractTextFromImage(imagePath: string): Promise<string[]>
     }
   });
 
+  console.log(lines);
   return lines;
 }

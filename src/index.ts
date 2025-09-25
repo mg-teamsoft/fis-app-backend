@@ -2,16 +2,24 @@ import express from 'express';
 import * as dotenv from 'dotenv';
 import config from './configs/config';
 import appRoutes from './app';
+import { connectMongo } from './db/mongo';
 
 dotenv.config();
 
-const app = express();
-const PORT = config.port;
+async function bootstrap() {
+  await connectMongo();
 
-app.use(express.json());
-app.use('/', appRoutes);
+  const app = express();
+  const PORT = config.port;
 
-app.listen(PORT, () => {
-  console.log(`🔧 Async OCR API running at http://localhost:${PORT}`);
-  console.log(`📚 Swagger UI available at http://localhost:${PORT}/api-docs`);
-});
+  app.use(express.json());
+  app.use('/', appRoutes);
+
+  app.listen(PORT, () => {
+    console.log(`🔧 Async OCR API running at http://localhost:${PORT}`);
+    console.log(`📚 Swagger UI available at http://localhost:${PORT}/api-docs`);
+  });
+}
+
+bootstrap();
+
