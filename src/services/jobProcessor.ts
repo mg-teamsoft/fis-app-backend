@@ -1,57 +1,84 @@
 // src/services/jobProcessor.ts
-import XLSX from 'xlsx';
-import fs from 'fs';
-import path from 'path';
 import config from '../configs/config';
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import runPythonOCR from './tesseractRunner';
+import { parseReceiptLines } from '../utils/receiptParser';
+import { checkAnomaly } from '../utils/checkAnomaly';
+import { extractTextFromImage } from './awsTextractService';
+import { extractReceiptWithOpenAI } from './openaiToReceiptDataService';
+import { JobModel } from '../models/JobModel';
 
-export const jobStore: Record<string, any> = {};
 
-export function processJob(job: any) {
-  try {
-    const worksheetData = [
-      ['Tarih', 'Ürün', 'Tutar'],
-      ...job.products.map((p: any) => [job.date, p.name, p.price]),
-      ['', 'TOPLAM', job.total],
-    ];
+type BufferJobParams = {
+  userId: string;
+  sourceKey: string; // S3 key
+  mime: string;
+  buffer: Buffer;
+};
 
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Fiş');
+export async function startJobFromBuffer(params: BufferJobParams) {
+  const jobId = randomUUID();
 
-    const outputDir = path.join(__dirname, '..', '..', config.outputDir);
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+  // You might want to persist a "job" doc in DB here with status = "queued"
+  await JobModel.create({
+    jobId,
+    userId: params.userId,
+    sourceKey: params.sourceKey,
+    status: "queued",
+    createdAt: new Date(),
+  });
 
-    const outputPath = path.join(outputDir, `${job.jobId}.xlsx`);
-    XLSX.writeFile(workbook, outputPath);
+  // Fire & forget (or queue it in Bull/Rabbit/etc)
+  process.nextTick(async () => {
+    let tmpPath;
+    try {
+      tmpPath = join(tmpdir(), `${randomUUID()}.jpg`);
+      await writeFile(tmpPath, params.buffer);
 
-    job.status = 'completed';
-    fs.unlink(job.imagePath, () => {});
-  } catch (error) {
-    console.error('Excel generation failed:', error);
-    job.status = 'failed';
-  }
-}
+      // 1) OCR (Tesseract, Cloud Vision, or Textract)
+      const text = await runPythonOCR(tmpPath, config.defaultLang);
+      // 2) Parse values
+      console.log('extractedData from offline OCR: ');
+      let extractedData = parseReceiptLines(text);
 
-export function processJobWithRows(jobId: string, rows: any[][]) {
-  try {
-    const worksheetData = [
-      ['TARİH', 'FİŞ NO', 'AÇIKLAMA', 'MATRAH', '%1 KDV', '%10 KDV', '%20 KDV', '%30 KDV', '%70 KDV', 'GENEL TOPLAM', 'KREDİ KARTI', 'KKG', 'KKEG'],
-      ...rows,
-    ];
+      // 3) chcek anomaly
+      if (checkAnomaly(extractedData)) {
+        console.warn(`Anomaly detected in ${tmpPath}.`);
 
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Fişler');
+        // 4) Retry with AWS Textract
+        const lines = await extractTextFromImage(tmpPath);
 
-    const outputDir = path.join(__dirname, '..', '..', config.outputDir);
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+        // 5) extract with OpenAI
+        extractedData = await extractReceiptWithOpenAI(lines);
+      }
 
-    const outputPath = path.join(outputDir, `${jobId}.xlsx`);
-    XLSX.writeFile(workbook, outputPath);
+      // rows.push([date || '', '', description || '', '', '', '', '', '', '', total || '', '', '', '']);
+      if (tmpPath) {
+        await unlink(tmpPath).catch(() => { });
+      }
+      console.log('extractedData final: ', extractedData);
 
-    jobStore[jobId].status = 'completed';
-  } catch (error) {
-    console.error('Batch Excel generation failed:', error);
-    jobStore[jobId].status = 'failed';
-  }
+      await JobModel.updateOne({ jobId }, {
+        status: "done",
+        receipt: extractedData,
+        finishedAt: new Date(),
+      });
+      console.log('finished processing file: ', tmpPath);
+      // await jobsRepo.update(jobId, { status: "done", receipt, finishedAt: new Date() });
+    } catch (err: any) {
+      if (tmpPath) {
+        await unlink(tmpPath).catch(() => { });
+      }
+      await JobModel.updateOne({ jobId }, {
+        status: "error",
+        error: err.message,
+      });      // Log error
+      console.error("Job error:", jobId, err);
+    }
+  });
+  return { jobId };
+
 }

@@ -1,7 +1,21 @@
 // receiptParsers.ts
-import { ReceiptRegexConfig } from '../configs/receiptConfig';
+import { receiptRegexConfig, ReceiptRegexConfig } from '../configs/receiptConfig';
 import { Product, KDVInfo, ReceiptData } from '../types/receiptTypes'; // Arayüzleri ocr_processor'dan import edin
-import { normalizeAmount } from './amountNormalizer';
+import { fuzzyFind } from '../utils/fuzzySearch';
+import config from '../configs/config';
+
+// Referans kelimeler (template1 keywords)
+const fuzzyKdvKeywords = [
+  'toplam kdv',
+  'kdv',
+];
+
+// Referans kelimeler (template1 keywords)
+const fuzzyTotalKeywords = [
+  'genel toplam',
+  'toplam tutar',
+  'toplam',
+];
 
 // TypeScript veri tipleri (arayüzler) buraya taşınabilir, ancak şimdilik ocr_processor.ts'te kalsın
 
@@ -585,4 +599,67 @@ export function extractAmountsFromLines(lines: string[]) {
         totalAmount, // string, e.g. "2.129,00"
         kdvAmount    // string, e.g. "193,55"
     };
+}
+
+export function parseReceiptLines(rawText: string): ReceiptData {
+  var extractedData: ReceiptData = {
+    businessName: null,
+    transactionDate: null,
+    receiptNumber: null,
+    products: [],
+    kdvAmount: null,
+    totalAmount: null,
+    transactionType: null,
+    paymentType: null
+  };
+
+  const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    console.log('line: ', line);
+    const lowerLine = line.toLocaleLowerCase();
+
+    // Firma Adı
+    if (extractedData.businessName == null && isMatching(lowerLine, receiptRegexConfig.businessNameIndicators)) {
+      extractedData.businessName = parseBusinessName(lines, receiptRegexConfig);
+    }
+
+    // Tarih
+    if (extractedData.transactionDate == null && isMatching(line, receiptRegexConfig.datePatterns)) {
+      extractedData.transactionDate = parseTransactionDate(line, receiptRegexConfig);
+    }
+
+    // Fiş No
+    if (extractedData.receiptNumber == null && isMatching(line, receiptRegexConfig.receiptNoPatterns)) {
+      extractedData.receiptNumber = parseReceiptNumber(line, receiptRegexConfig);
+    }
+
+    // Kdv Tutarı
+    // if (extractedData.kdvAmount == null && isMatching(line, receiptRegexConfig.kdvPatterns)) {
+    if (!extractedData.kdvAmount && fuzzyFind(lowerLine, fuzzyKdvKeywords, config.fuzzyThreshold)) {
+      const normalized = normalizeAmounts(line);
+      extractedData.kdvAmount = parseKdvAmount(normalized, receiptRegexConfig);
+    }
+
+    // Toplam Tutar
+    // if (extractedData.totalAmount == null && isMatching(line, receiptRegexConfig.totalPatterns)) {
+    if (!extractedData.totalAmount && fuzzyFind(lowerLine, fuzzyTotalKeywords, config.fuzzyThreshold)) {
+      const normalized = normalizeAmounts(line);
+      console.log('normalized: ', normalized);
+      extractedData.totalAmount = parseTotalAmount(normalized, receiptRegexConfig);
+    }
+
+    // İşlem Türü
+    if (extractedData.transactionType == null && isMatching(line, receiptRegexConfig.transactionTypePatterns)) {
+      extractedData.transactionType = parseTransactionType(line, receiptRegexConfig);
+    }
+
+    // Ödeme Şekli
+    if (extractedData.paymentType == null && isMatching(line, receiptRegexConfig.paymentTypePatterns)) {
+      extractedData.paymentType = parsePaymentType(line, receiptRegexConfig);
+    }
+  }
+
+  console.log(extractedData);
+  return extractedData;
 }

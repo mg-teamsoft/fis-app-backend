@@ -5,6 +5,8 @@ import { parseCurrency, parsePercent, parsePaymentType } from "../utils/parserHe
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function extractReceiptWithOpenAI(lines: string[]): Promise<ReceiptData> {
+  console.log('extractedData from OpenAI');
+
   const text = lines.join("\n");
 
   const prompt = `
@@ -19,6 +21,8 @@ Kurallar:
 Metin:
 ${text}
 `;
+
+  console.log('OpenAI Prompt is ', prompt);
 
   const completion = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -38,7 +42,7 @@ ${text}
     throw e;
   }
 
-  return {
+  const result = {
     businessName: ai.firmaAd?.trim() || null,
     transactionDate: ai.islemTarihi?.trim() || null,
     receiptNumber: ai.fisNo?.trim() || null,
@@ -50,4 +54,6 @@ ${text}
       : null,
     paymentType: parsePaymentType(ai.odemeTuru),
   };
+  console.log('OpenAI extracted result: ', result);
+  return result
 }

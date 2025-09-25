@@ -5,3 +5,4 @@ export function cleanOcrLine(line: string): string {
     .replace(/[^a-zA-Z0-9şŞıİçÇöÖüÜğĞ .,:%&@()\\-]/g, '') // sadece istenen karakterleri tut
     .trim();
 }
+
