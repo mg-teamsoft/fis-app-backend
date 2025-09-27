@@ -2,8 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build: .
-    container_name: fis-backend
+    image: ghcr.io/mg-teamsoft/fis-app-backend:latest
     ports:
       - "3000:3000"
     environment:
