@@ -19,10 +19,8 @@ FIS_APP/
 │   ├── app.ts        # Express app entry
 │   └── index.ts      # Server bootstrap
 ├── uploads/          # Uploaded image files
-├── .env              # Environment variables
 ├── package.json      # Project metadata
-├── tsconfig.json     # TypeScript config
-└── tur.traineddata   # Turkish OCR model
+└── tsconfig.json     # TypeScript config
 ```
 
 ## 🛠️ Features
@@ -42,6 +40,52 @@ npm run dev        # with nodemon
 npm run build      # compile to dist/
 npm run start      # run built app
 ```
+
+## 🐳 Docker Workflow
+
+### Compose basics
+
+- Ensure Docker and Docker Compose are installed locally.
+- Copy or create an environment file for your target stage (for example `.env.dev` or `.env.prod`). The compose stack reads the file declared via the `ENV` flag in the Makefile (defaults to `.env.dev`).
+- Build and start the stack:
+  ```bash
+  docker-compose --env-file .env.dev -p fis-app up -d --build
+  ```
+- Stop the stack:
+  ```bash
+  docker-compose -p fis-app down
+  ```
+
+### Using the provided Makefile
+
+Most common Docker Compose commands are aliased in the root `Makefile`.
+
+```bash
+# start services (defaults to ENV=dev)
+make up
+
+# build containers without starting
+make build
+
+# watch logs or inspect status
+make logs
+make ps
+
+# stop services when you're done
+make down
+```
+
+Switch between environments by overriding `ENV`:
+
+```bash
+make up ENV=prod
+```
+
+The Make targets also include helpers such as `make shell` (opens a shell in the backend container), `make mongo-shell` (Mongo shell), `make test`, and `make prune`. Run `make help` to see the full list.
+
+### Container health checks
+
+The Dockerfile exposes port `3000` and defines health checks against `/health-me` and `/health-me/db`. Ensure the `dist/` build exists before building the image (`npm run build`) or mount the source in development mode via compose.
 
 ## 📚 API Documentation
 
