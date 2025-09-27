@@ -1,0 +1,19 @@
+# docker-compose.override.yml
+version: '3.8'
+
+services:
+  backend:
+    volumes:
+      - .:/app
+      - /app/node_modules       # prevent overwriting
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mongo:
+    ports:
+      - "27017:27017"
