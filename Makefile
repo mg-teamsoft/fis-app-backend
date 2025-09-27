@@ -6,6 +6,12 @@ COMPOSE = docker-compose
 PROJECT_NAME = fis-app
 ENV_FILE = .env.$(ENV)
 
+# GHCR Image settings
+GHCR_REGISTRY=ghcr.io
+GHCR_NAMESPACE=mg-teamsoft/fis-app-backend
+GHCR_TAG=latest
+GHCR_IMAGE=$(GHCR_REGISTRY)/$(GHCR_NAMESPACE):$(GHCR_TAG)
+
 # Docker Compose commands
 up:
 	$(COMPOSE) --env-file $(ENV_FILE) -p $(PROJECT_NAME) up -d
@@ -52,3 +58,20 @@ help:
 	@echo "  test          - Run backend tests"
 	@echo "  prune         - Prune unused Docker data"
 	@echo "  help          - Show this help"
+
+# Build Docker image for GHCR
+ghcr-build:
+	docker build -t $(GHCR_IMAGE) .
+
+# Push Docker image to GHCR (manual)
+ghcr-push: ghcr-build
+	docker push $(GHCR_IMAGE)
+
+# Login to GHCR using a Personal Access Token
+ghcr-login:
+	@echo "Logging in to GHCR..."
+	@if [ -z "$$GHCR_PAT" ]; then \
+		echo "❌ Please export GHCR_PAT=your_personal_access_token before running this"; \
+		exit 1; \
+	fi
+	echo $$GHCR_PAT | docker login ghcr.io -u muratguven --password-stdin

@@ -12,7 +12,7 @@ jobs:
     env:
       IMAGE_NAME: fis-app-backend
       GHCR_REGISTRY: ghcr.io
-      IMAGE_TAG: ghcr.io/${{ github.repository }}/fis-app-backend
+      IMAGE_TAG: ghcr.io/${{ github.repository }}
 
     steps:
       - name: Checkout code
