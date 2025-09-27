@@ -12,6 +12,7 @@ import fileRoutes from "./routes/files";
 import uploadByKeyRoutes from "./routes/uploadByKey";
 import { requireAuth } from './middleware/authJwt';
 import morgan from "morgan";
+import { healthRouter } from './routes/health';
 
 const app = express();
 app.use(cors())
@@ -25,6 +26,9 @@ connectMongo().catch((e) => {
   console.error("Mongo connection error:", e);
   process.exit(1);
 });
+
+// public health check endpoints
+app.use("/health-me", healthRouter);
 
 // public auth endpoints
 app.use("/auth", authRoutes);
