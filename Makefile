@@ -75,3 +75,6 @@ ghcr-login:
 		exit 1; \
 	fi
 	echo $$GHCR_PAT | docker login ghcr.io -u muratguven --password-stdin
+
+prod-up:
+	$(COMPOSE) --env-file .env.prod -p $(PROJECT_NAME) -f docker-compose.yml -f docker-compose.prod.yml up -d

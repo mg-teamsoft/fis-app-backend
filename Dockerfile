@@ -18,6 +18,10 @@ RUN npm install --production
 # Copy app source
 COPY . .
 
+RUN npm run build \
+  && ls dist/index.js || (echo "❌ Build failed: dist/index.js not found" && exit 1) \
+  && npm prune --omit=dev
+
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app
 
