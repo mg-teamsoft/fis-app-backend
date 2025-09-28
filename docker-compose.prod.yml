@@ -3,6 +3,9 @@ version: '3.8'
 services:
   backend:
     image: ghcr.io/mg-teamsoft/fis-app-backend:latest
+    build: "null"
+    env_file:
+      - .env.prod
     ports:
       - "3000:3000"
     environment:

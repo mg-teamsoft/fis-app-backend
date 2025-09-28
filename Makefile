@@ -57,6 +57,10 @@ help:
 	@echo "  mongo-shell   - MongoDB shell"
 	@echo "  test          - Run backend tests"
 	@echo "  prune         - Prune unused Docker data"
+	@echo "  prod-up       - Start prod stack with docker-compose.prod.yml"
+	@echo "  ghcr-build    - Build GHCR Docker image"
+	@echo "  ghcr-push     - Build and push GHCR image"
+	@echo "  ghcr-login    - Login to GHCR (requires GHCR_PAT)"
 	@echo "  help          - Show this help"
 
 # Build Docker image for GHCR
@@ -77,4 +81,4 @@ ghcr-login:
 	echo $$GHCR_PAT | docker login ghcr.io -u muratguven --password-stdin
 
 prod-up:
-	$(COMPOSE) --env-file .env.prod -p $(PROJECT_NAME) -f docker-compose.yml -f docker-compose.prod.yml up -d
+	$(COMPOSE) -p $(PROJECT_NAME) -f docker-compose.yml -f docker-compose.prod.yml up -d
