@@ -13,17 +13,16 @@ WORKDIR /app
 
 # Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci
 
-# Copy app source
+# Copy all source files
 COPY . .
 
+# Compile TypeScript, check build output, prune dev dependencies, and change ownership in one layer
 RUN npm run build \
   && ls dist/index.js || (echo "❌ Build failed: dist/index.js not found" && exit 1) \
-  && npm prune --omit=dev
-
-# Change ownership to appuser
-RUN chown -R appuser:appuser /app
+  && npm prune --omit=dev \
+  && chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
