@@ -19,7 +19,8 @@ RUN npm ci
 COPY . .
 
 # Compile TypeScript, check build output, prune dev dependencies, and change ownership in one layer
-RUN npm run build \
+RUN rm -rf dist \ 
+  && npm run build \
   && ls dist/index.js || (echo "❌ Build failed: dist/index.js not found" && exit 1) \
   && npm prune --omit=dev \
   && chown -R appuser:appuser /app
