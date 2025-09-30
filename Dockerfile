@@ -15,6 +15,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
+# 📌 Copy Python requirements and install Python packages
+COPY src/scripts/requirements.txt ./scripts/
+RUN pip3 install --break-system-packages --no-cache-dir -r scripts/requirements.txt
+
 # Copy all source files
 COPY . .
 
