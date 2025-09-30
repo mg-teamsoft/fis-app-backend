@@ -7,7 +7,7 @@ import { TokenSession, sha256 } from "../models/TokenSession";
 
 const router = Router();
 const ONE_DAY_SEC = 24 * 60 * 60;
-const passwordRegex = /^(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
 
 // --- helper to sign HS256 JWT ---
 async function signJwt(payload: Record<string, any>, expSeconds = ONE_DAY_SEC): Promise<{ token: string; exp: number }> {
@@ -40,11 +40,13 @@ router.post("/register", async (req: Request, res: Response) => {
     if (!userName || !password) {
       return res.status(400).json({ status: "error", message: "userName and password are required" });
     }
+    
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
-        error: 'Password must be at least 8 characters, contain at least one uppercase letter and one special character.'
+        error: 'Password must be at least 8 characters, contain at least (1 uppercase & 1 lowercase & 1 number & 1 special) char.'
       });
     }
+
     // generate UUID if userId is null or empty
     if (!userId) {
       userId = uuidv4();
