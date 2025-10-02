@@ -3,7 +3,7 @@ FROM node:20-slim
 
 # Install Python, Tesseract, required tools, and create non-root user
 RUN apt-get update && \
-  apt-get install -y python3 python3-pip tesseract-ocr && \
+  apt-get install -y python3 python3-pip tesseract-ocr tesseract-ocr-tur && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* && \
   useradd -m -s /bin/bash appuser
