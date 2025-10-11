@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 import config from './configs/config';
 import appRoutes from './app';
 import { connectMongo } from './db/mongo';
-import { apiRateLimiter } from './middleware/rateLimitMiddleware';
+import { apiRateLimiter, authApiRateLimiter } from './middleware/rateLimitMiddleware';
 
 dotenv.config();
 
@@ -14,6 +14,7 @@ async function bootstrap() {
   const PORT = config.port;
 
   app.use(express.json());
+  app.use('/api/auth', authApiRateLimiter, appRoutes);
   app.use('/api', apiRateLimiter, appRoutes);
 
   app.listen(PORT, () => {
