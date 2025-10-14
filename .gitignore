@@ -3,6 +3,7 @@ node_modules/
 dist/
 uploads/
 output/
+logs/
 .env*
 
 tur.traineddata
