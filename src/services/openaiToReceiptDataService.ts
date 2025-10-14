@@ -15,7 +15,7 @@ Kurallar:
 1. Alanlar: firmaAd, fisNo, tutar, kdv, kdvOran, islemTarihi, islemTuru, odemeTuru
 2. tutar ve kdv değerleri Türk Lirası formatında olmalı (örn: "1.234,56")
 3. islemTarihi formatı dd.mm.yyyy olmalı
-4. islemTuru yalnızca şu beş değerden biri olmalı: "YIYECEK", "YEMEK", "AKARYAKIT", "OTOPARK", "ELEKTRONIK"
+4. islemTuru yalnızca şu beş değerden biri olmalı: "YİYECEK", "YEMEK", "AKARYAKIT", "OTOPARK", "ELEKTRONİK", "İLAÇ", "KIRTASİYE"
 5. Alan adları çift tırnak içinde olmalı, JSON dışında hiçbir şey yazma.
 
 Metin:
