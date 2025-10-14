@@ -28,7 +28,6 @@ if args["pre_processor"]=="blur":
 filename = "{}.jpg".format(os.getpid())
 cv2.imwrite(filename, gray)
 
-# custom_oem_psm_config = r'--oem 3 --psm 6'
 text = pytesseract.image_to_string(Image.open(filename), lang=args["lang"])
 print(text.strip(), flush=True)
 
