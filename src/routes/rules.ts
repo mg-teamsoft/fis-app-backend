@@ -66,7 +66,7 @@ router.get("/",
 
     const doc = await UserRulesModel.findOne({ userId });
     if (!doc) {
-      return res.status(404).json({ status: "error", message: "Rules not found" });
+      return res.status(200).json({ status: "error", message: "Rules not found" });
     }
 
     return res.json({

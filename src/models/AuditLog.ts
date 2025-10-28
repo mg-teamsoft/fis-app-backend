@@ -1,6 +1,11 @@
 import { Schema, model, models } from "mongoose";
 
-export type AuditAction = "IMAGE_UPLOAD" | "FILE_WRITE" | "RULE_WRITE" | "RULE_GET" | "CHECK_WRITE" | "LIST_EXCEL" ;
+export type AuditAction = "IMAGE_UPLOAD" | 
+"FILE_WRITE" | 
+"RULE_WRITE" | "RULE_GET" | 
+"TEMPLATE_WRITE" | 
+"FILE_LIST" |
+"RECEIPT_CREATE" | "RECEIPT_LIST" | "RECEIPT_LIST_ITEM" | "RECEIPT_DETAIL" | "RECEIPT_EXPORT";
 export interface AuditLog {
   requestId: string;
   action: AuditAction;

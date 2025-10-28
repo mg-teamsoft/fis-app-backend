@@ -46,13 +46,13 @@ export async function writeReceiptToExcel(receipt: ReceiptData): Promise<{ fileP
     } else {
       // Create new workbook
       const headers = [
-        'Firma Adı',
+        'Şirket Adı',
         'İşlem Tarihi',
         'Fiş No',
         'KDV Tutarı',
         'Toplam Tutar',
-        'Harcama Türü',
         'KDV Oranı (%)',
+        'İşlem Tipi',
         'Ödeme Tipi'
       ];
       const rows = [headers, receiptToRow(receipt)];

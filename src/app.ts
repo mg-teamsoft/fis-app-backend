@@ -10,6 +10,8 @@ import templateRoutes from "./routes/excelTemplate";
 import authRoutes from "./routes/auth";
 import fileRoutes from "./routes/files";
 import uploadByKeyRoutes from "./routes/uploadByKey";
+import receiptRoutes from "./routes/receipts";
+
 import { requireAuth } from './middleware/authJwt';
 import morgan from "morgan";
 import { healthRouter } from './routes/health';
@@ -41,6 +43,7 @@ app.use("/rule", requireAuth(), ruleRoutes);
 app.use("/template", requireAuth(), templateRoutes);
 app.use("/file", requireAuth(), fileRoutes);
 app.use("/upload", requireAuth(), uploadByKeyRoutes);
+app.use("/receipts", requireAuth(), receiptRoutes);
 
 //  Setup Swagger API Docs
 setupSwagger(app);
