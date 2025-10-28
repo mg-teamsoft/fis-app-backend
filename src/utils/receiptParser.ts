@@ -520,20 +520,24 @@ export function parseTransactionType(rawText: string, config: ReceiptRegexConfig
 /**
  * Ham OCR metninden ödeme tipini ayrıştırır.
  */
-export function parsePaymentType(rawText: string, config: ReceiptRegexConfig): number | null {
+export function parsePaymentType(rawText: string, config: ReceiptRegexConfig): string {
     for (const pattern of config.paymentTypePatterns) {
         const match = rawText.match(pattern);
         if (match) {
             const matchedKeyword = match[1].toUpperCase(); // Yakalanan anahtar kelime
 
             if (matchedKeyword.includes("KART") || matchedKeyword.includes("CREDIT") || matchedKeyword.includes("VISA") || matchedKeyword.includes("MASTER") || matchedKeyword.includes("POS")) {
-                return 1;  // KREDİ KARTI
+                return "Kredi Kartı";  // KREDİ KARTI
             } else if (matchedKeyword.includes("NAKİT") || matchedKeyword.includes("PEŞİN") || matchedKeyword.includes("CASH")) {
-                return 2; // NAKİT
+                return "Nakit"; // NAKİT
+            } else if (matchedKeyword.includes("MOBİl") || matchedKeyword.includes("MOBILE") || matchedKeyword.includes("CASH")) {
+                return "Mobil"; // Mobil Ödeme
+            } else {
+                return "Diğer"; // Diğer ödeme tipleri
             }
         }
     }
-    return null; // Hiçbir ödeme tipi bulunamadıysa
+    return "Diğer"; // Hiçbir ödeme tipi bulunamadıysa
 }
 
 /**
@@ -619,12 +623,12 @@ export function parseReceiptLines(rawText: string): ReceiptData {
     console.log('line: ', line);
     const lowerLine = line.toLocaleLowerCase();
 
-    // Firma Adı
+    // Şirket Adı
     if (extractedData.businessName == null && isMatching(lowerLine, receiptRegexConfig.businessNameIndicators)) {
       extractedData.businessName = parseBusinessName(lines, receiptRegexConfig);
     }
 
-    // Tarih
+    // İşlem Tarihi
     if (extractedData.transactionDate == null && isMatching(line, receiptRegexConfig.datePatterns)) {
       extractedData.transactionDate = parseTransactionDate(line, receiptRegexConfig);
     }
@@ -649,12 +653,12 @@ export function parseReceiptLines(rawText: string): ReceiptData {
       extractedData.totalAmount = parseTotalAmount(normalized, receiptRegexConfig);
     }
 
-    // İşlem Türü
+    // İşlem Tipi
     if (extractedData.transactionType == null && isMatching(line, receiptRegexConfig.transactionTypePatterns)) {
       extractedData.transactionType = parseTransactionType(line, receiptRegexConfig);
     }
 
-    // Ödeme Şekli
+    // Ödeme Tipi
     if (extractedData.paymentType == null && isMatching(line, receiptRegexConfig.paymentTypePatterns)) {
       extractedData.paymentType = parsePaymentType(line, receiptRegexConfig);
     }

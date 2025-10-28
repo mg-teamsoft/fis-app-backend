@@ -12,7 +12,7 @@ const router = Router();
  * POST /excel/template/write
  * Body: { userId: string, receipt: ReceiptData, fullName?: string }
  */
-router.post("/write", auditInterceptor("CHECK_WRITE"), async (req: Request, res: Response) => {
+router.post("/write", auditInterceptor("TEMPLATE_WRITE"), async (req: Request, res: Response) => {
   try {
     const { userId, fullname } = await JwtUtil.extractUser(req);
     const receipt = req.body as ReceiptData | undefined;

@@ -6,18 +6,10 @@ import { ReceiptData } from "../types/receiptTypes";
 import { buildUserExcelKey } from "../utils/excelKey";
 import { createPresignedGetUrl, getObjectBufferAsU8, uploadBufferToS3 } from "./s3Service";
 import { ExcelFileModel } from "../models/ExcelFileModel";
+import { monthNameTr } from "../utils/dateUtil";
 
 const OUTPUT_DIR = path.join(process.cwd(), "output");
 const FILE_EXT = "Fis_Listesi.xlsx";
-
-// ---- Month & names (TR) ----
-function monthNameTr(d = new Date()): string {
-    const names = [
-        "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-        "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
-    ];
-    return names[d.getMonth()];
-}
 
 function sheetNameFor(d = new Date()): string {
     const yy = String(d.getFullYear()).slice(-2);
@@ -34,13 +26,13 @@ function filePathFor(fullName: string, userId: string): string {
 }
 
 const HEADERS = [
-    "Açıklama",
-    "Tarih",
+    "Şirket Adı",
+    "İşlem Tarihi",
     "Fiş No",
     "KDV Tutarı",
     "Toplam Tutar",
-    "Harcama Türü",
     "KDV Oranı (%)",
+    "İşlem Tipi",
     "Ödeme Tipi",
 ] as const;
 

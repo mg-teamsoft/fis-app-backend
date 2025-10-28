@@ -12,11 +12,12 @@ export async function extractReceiptWithOpenAI(lines: string[]): Promise<Receipt
   const prompt = `
 Sen bir fiş/fatura metni yorumlayıcısısın. Aşağıdaki metni incele ve yalnızca JSON formatında yanıt ver.
 Kurallar:
-1. Alanlar: firmaAd, fisNo, tutar, kdv, kdvOran, islemTarihi, islemTuru, odemeTuru
-2. tutar ve kdv değerleri Türk Lirası formatında olmalı (örn: "1.234,56")
-3. islemTarihi formatı dd.mm.yyyy olmalı
-4. islemTuru yalnızca şu beş değerden biri olmalı: "YİYECEK", "YEMEK", "AKARYAKIT", "OTOPARK", "ELEKTRONİK", "İLAÇ", "KIRTASİYE"
-5. Alan adları çift tırnak içinde olmalı, JSON dışında hiçbir şey yazma.
+1. Alanlar: şirket adı, fiş no, toplam tutar, kdv tutarı, kdv oranı (%), işlem tarihi, işlem tipi, ödeme tipi
+2. Toplam tutar ve kdv tutarı değerleri Türk Lirası formatında olmalı (örn: "1.234,56")
+3. İşlem tarihi formatı dd.mm.yyyy olmalı
+4. İşlem tipi yalnızca şu değerlerden biri olabilir: "ALIŞVERİŞ", "YEMEK", "AKARYAKIT", "OTOPARK", "ELEKTRONİK", "İLAÇ", "KIRTASİYE", "DİĞER"
+5. Ödeme tipi yalnızca şu değerlerden biri olabilir: "Kredi Kartı", "Nakit", "Mobil Ödeme", "Diğer"
+6. Alan adları çift tırnak içinde olmalı, JSON dışında hiçbir şey yazma.
 
 Metin:
 ${text}
@@ -52,8 +53,8 @@ ${text}
     transactionType: ai.islemTuru
       ? { type: ai.islemTuru, kdvRate: parsePercent(ai.kdvOran) }
       : null,
-    paymentType: parsePaymentType(ai.odemeTuru),
+    paymentType: ai.odemeTuru?.trim() || null,
   };
   console.log('OpenAI extracted result: ', result);
-  return result
+  return result;
 }
