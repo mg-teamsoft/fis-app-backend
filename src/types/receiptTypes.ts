@@ -17,5 +17,13 @@ export interface ReceiptData {
     kdvAmount: number | null;
     totalAmount: number | null;
     transactionType: { type: string; kdvRate: number | null } | null;
-    paymentType: number | null;
+    paymentType: string | null;
+}
+
+export interface ReceiptDataListItem {
+    id: string | null;
+    businessName: string | null;
+    transactionDate: string | null;
+    receiptNumber: string | null;
+    totalAmount: number | null;
 }

@@ -31,7 +31,7 @@ export async function createPresignedPutUrlWithInput(
   });
 }
 
-export async function createPresignedGetUrl(key: string, expiresSec = 300) {
+export async function createPresignedGetUrl(key: string, expiresSec = 900) {
   const cmd = new GetObjectCommand({ Bucket: awsConfig.bucket, Key: key });
   const url = await getSignedUrl(s3, cmd, { expiresIn: expiresSec });
   return url;
