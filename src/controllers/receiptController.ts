@@ -5,9 +5,6 @@ import { JwtUtil } from '../utils/jwtUtil';
 import * as XLSX from 'xlsx';
 import { monthNameTr } from '../utils/dateUtil';
 import { ReceiptDataListItem } from '../types/receiptTypes';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { awsConfig } from '../configs/aws';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createPresignedGetUrl } from '../services/s3Service';
 
 export async function createReceipt(req: Request, res: Response) {

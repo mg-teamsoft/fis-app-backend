@@ -4,11 +4,13 @@ import config from './configs/config';
 import appRoutes from './app';
 import { connectMongo } from './db/mongo';
 import { apiRateLimiter, authApiRateLimiter } from './middleware/rateLimitMiddleware';
+import { scheduleUserPlanMaintenance } from './schedules/userPlanScheduler';
 
 dotenv.config();
 
 async function bootstrap() {
   await connectMongo();
+  scheduleUserPlanMaintenance();
 
   const app = express();
   const PORT = config.port;
@@ -24,4 +26,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-

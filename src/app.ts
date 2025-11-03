@@ -11,6 +11,10 @@ import authRoutes from "./routes/auth";
 import fileRoutes from "./routes/files";
 import uploadByKeyRoutes from "./routes/uploadByKey";
 import receiptRoutes from "./routes/receipts";
+import planRoutes, { publicPlanRoutes } from "./routes/plans";
+import homeSummaryRoutes from "./routes/homeSummary";
+import userRoutes from "./routes/users";
+import userPlanRoutes from "./routes/userPlans";
 
 import { requireAuth } from './middleware/authJwt';
 import morgan from "morgan";
@@ -34,6 +38,7 @@ app.use("/health-me", healthRouter);
 
 // public auth endpoints
 app.use("/auth", authRoutes);
+app.use("/plans", publicPlanRoutes);
 
 // Secure these route groups
 app.use('/image', requireAuth(), uploadRoutes);
@@ -44,6 +49,10 @@ app.use("/template", requireAuth(), templateRoutes);
 app.use("/file", requireAuth(), fileRoutes);
 app.use("/upload", requireAuth(), uploadByKeyRoutes);
 app.use("/receipts", requireAuth(), receiptRoutes);
+app.use("/plans", requireAuth(), planRoutes);
+app.use("/home", requireAuth(), homeSummaryRoutes);
+app.use("/users", requireAuth(), userRoutes);
+app.use("/user-plans", requireAuth(), userPlanRoutes);
 
 //  Setup Swagger API Docs
 setupSwagger(app);

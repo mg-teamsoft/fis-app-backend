@@ -4,6 +4,9 @@ import { v4 as uuidv4 } from "uuid";
 import { UserModel } from "../models/User";
 import { verifyPassword, hashPassword } from "../utils/password";
 import { TokenSession, sha256 } from "../models/TokenSession";
+import crypto from 'crypto';
+import { sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail } from "../services/sendEmailService";
+import { purchasePlan } from "../controllers/planController";
 
 const router = Router();
 const ONE_DAY_SEC = 24 * 60 * 60;
@@ -36,11 +39,11 @@ async function signJwt(payload: Record<string, any>, expSeconds = ONE_DAY_SEC): 
  */
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    let { userId, userName, password, email } = req.body || {};
+    let { userId, userName, password, email, planKey } = req.body || {};
     if (!userName || !password) {
       return res.status(400).json({ status: "error", message: "userName and password are required" });
     }
-    
+
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         error: 'Password must be at least 8 characters, contain at least (1 uppercase & 1 lowercase & 1 number & 1 special) char.'
@@ -51,16 +54,160 @@ router.post("/register", async (req: Request, res: Response) => {
     if (!userId) {
       userId = uuidv4();
     }
-    
+
     const exists = await UserModel.findOne({ $or: [{ userId }, { userName }] });
     if (exists) return res.status(409).json({ status: "error", message: "User already exists" });
 
     const passwordHash = await hashPassword(password);
+
     const user = await UserModel.create({ userId, userName, email: email ?? null, passwordHash });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
+
+    user.verificationToken = token;
+    user.verificationTokenExpires = expires;
+    await user.save();
+
+    if (planKey) {
+      try {
+        await purchasePlan(user.userId, planKey);
+      } catch (planError: any) {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan assignment failed",
+          detail: planError?.message || "Unknown error",
+        });
+      }
+    }
+
+    const verificationLink = `${process.env.FRONTEND_URL}/api/auth/verify-email?token=${token}`;
+    await sendVerificationEmail(email!, verificationLink);
 
     return res.json({ status: "success", message: "User created", data: { userId: user.userId, userName: user.userName } });
   } catch (err: any) {
     return res.status(500).json({ status: "error", message: err?.message || "Register failed" });
+  }
+});
+
+/**
+ * verify user email
+ * GET /auth/verify-email
+ * body: { token }
+ */
+router.get("/verify-email", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+    const user = await UserModel.findOne({ verificationToken: token });
+
+    if (!user || user.verificationTokenExpires < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    user.emailVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    await user.save();
+
+    // Send Welcome Email
+    await sendWelcomeEmail(user.email, user.userName || ' Kullanıcı');
+
+    return res.json({ message: 'Email verified successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ status: "error", message: err?.message || "Verify email failed" });
+  }
+});
+
+/**
+ * verify user email
+ * GET /auth/resend-email-verification
+ * body: { token }
+ */
+router.post("/resend-email-verification", async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    const user = await UserModel.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({ error: 'E-posta zaten doğrulandı.' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
+    user.verificationToken = token;
+    user.verificationTokenExpires = expires;
+    await user.save();
+
+    await sendVerificationEmail(user.email, token);
+
+    return res.json({ message: 'Doğrulama e-postası tekrar gönderildi.' });
+  } catch (err: any) {
+    return res.status(500).json({ status: "error", message: err?.message || "Verify email failed" });
+  }
+});
+
+router.post("/request-password-reset", async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ status: "error", message: "email is required" });
+    }
+
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      return res.json({ status: "success", message: "If the account exists, a reset email has been sent." });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    user.passwordResetToken = token;
+    user.passwordResetExpires = expires;
+    await user.save();
+
+    const baseUrl = process.env.FRONTEND_URL ?? '';
+    const resetLink = baseUrl ? `${baseUrl}/reset-password?token=${token}` : token;
+
+    await sendPasswordResetEmail(user.email!, resetLink);
+
+    return res.json({ status: "success", message: "If the account exists, a reset email has been sent." });
+  } catch (err: any) {
+    return res.status(500).json({ status: "error", message: err?.message || "Request password reset failed" });
+  }
+});
+
+router.post("/reset-password", async (req: Request, res: Response) => {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || !password) {
+      return res.status(400).json({ status: "error", message: "token and password are required" });
+    }
+
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters, contain at least (1 uppercase & 1 lowercase & 1 number & 1 special) char.'
+      });
+    }
+
+    const user = await UserModel.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ status: "error", message: "Invalid or expired token" });
+    }
+
+    user.passwordHash = await hashPassword(password);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    return res.json({ status: "success", message: "Password has been reset successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ status: "error", message: err?.message || "Reset password failed" });
   }
 });
 
