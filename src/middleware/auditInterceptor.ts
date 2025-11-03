@@ -8,8 +8,6 @@ async function getUserFromReq(req: Request) {
     // e.g., req.user = { id, name } if you have JWT/session middleware.
     const { userId: userId, fullname: userName } = await JwtUtil.extractUser(req);
     
-    //const userId = (req as any)?.user?.id || (req.headers["x-user-id"] as string) || null;
-    //const userName = (req as any)?.user?.name || (req.headers["x-user-name"] as string) || null;
     return { userId, userName };
 }
 
