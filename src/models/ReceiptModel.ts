@@ -83,6 +83,7 @@ ReceiptSchema.index(
 
 // ✅ Additional Search Index for filtering (optional but recommended)
 ReceiptSchema.index({ userId: 1, businessName: 1, receiptNumber: 1, transactionDate: -1 });
+ReceiptSchema.index({ userId: 1, companyName: 1 });
 
 // Create and export model
 const ReceiptModel = model<ReceiptModel>('Receipts', ReceiptSchema);

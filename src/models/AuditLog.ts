@@ -1,11 +1,37 @@
 import { Schema, model, models } from "mongoose";
 
-export type AuditAction = "IMAGE_UPLOAD" | 
-"FILE_WRITE" | 
-"RULE_WRITE" | "RULE_GET" | 
-"TEMPLATE_WRITE" | 
-"FILE_LIST" |
-"RECEIPT_CREATE" | "RECEIPT_LIST" | "RECEIPT_LIST_ITEM" | "RECEIPT_DETAIL" | "RECEIPT_EXPORT";
+export const AUDIT_ACTIONS = [
+  "IMAGE_UPLOAD",
+  "HOME_SUMMARY",
+  "FILE_WRITE",
+  "RULE_WRITE",
+  "RULE_GET",
+  "TEMPLATE_WRITE",
+  "FILE_LIST",
+  "PLAN_LIST",
+  "PLAN_WRITE",
+  "PLAN_UPDATE",
+  "PLAN_GET",
+  "PLAN_DELETE",
+  "PLAN_PURCHASE",
+  "RECEIPT_CREATE",
+  "RECEIPT_LIST",
+  "RECEIPT_LIST_ITEM",
+  "RECEIPT_DETAIL",
+  "RECEIPT_EXPORT",
+  "USER_LIST",
+  "USER_GET",
+  "USER_CREATE",
+  "USER_UPDATE",
+  "USER_DELETE",
+  "USER_PLAN_LIST",
+  "USER_PLAN_BY_USER",
+  "USER_PLAN_GET",
+  "USER_PLAN_DETAILS",
+] as const;
+
+export type AuditAction = typeof AUDIT_ACTIONS[number];
+
 export interface AuditLog {
   requestId: string;
   action: AuditAction;
@@ -23,7 +49,7 @@ export interface AuditLog {
 const AuditLogSchema = new Schema<AuditLog>(
   {
     requestId: { type: String, index: true, required: true },
-    action: { type: String, enum: ["UPLOAD", "WRITE"], required: true },
+    action: { type: String, enum: AUDIT_ACTIONS, required: true },
     userId: { type: String, default: null, index: true },
     userName: { type: String, default: null },
     ip: { type: String, default: null },
