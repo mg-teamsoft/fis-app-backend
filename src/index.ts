@@ -10,7 +10,7 @@ dotenv.config();
 
 async function bootstrap() {
   await connectMongo();
-  scheduleUserPlanMaintenance();
+  //scheduleUserPlanMaintenance();
 
   const app = express();
   const PORT = config.port;
