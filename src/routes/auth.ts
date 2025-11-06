@@ -119,8 +119,8 @@ router.get("/verify-email", async (req: Request, res: Response) => {
 });
 
 /**
- * verify user email
- * GET /auth/resend-email-verification
+ * resend user email
+ * POST /auth/resend-email-verification
  * body: { token }
  */
 router.post("/resend-email-verification", async (req: Request, res: Response) => {
@@ -140,7 +140,8 @@ router.post("/resend-email-verification", async (req: Request, res: Response) =>
     user.verificationTokenExpires = expires;
     await user.save();
 
-    await sendVerificationEmail(user.email, token);
+    const verificationLink = `${process.env.FRONTEND_URL}/api/auth/verify-email?token=${token}`;
+    await sendVerificationEmail(user.email, verificationLink);
 
     return res.json({ message: 'Doğrulama e-postası tekrar gönderildi.' });
   } catch (err: any) {

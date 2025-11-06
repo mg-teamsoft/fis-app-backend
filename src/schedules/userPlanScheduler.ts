@@ -22,7 +22,10 @@ async function resetExpiredUserPlans() {
 
   await Promise.all(
     userPlans.map(async (userPlan) => {
-      if (!userPlan.endDate || userPlan.endDate > now) {
+      const isExpired = !!userPlan.endDate && userPlan.endDate <= now;
+      const isAdditionalDepleted = userPlan.planKey === 'ADDITIONAL' && userPlan.quota <= 0;
+
+      if (!isExpired && !isAdditionalDepleted) {
         return;
       }
 
@@ -33,6 +36,9 @@ async function resetExpiredUserPlans() {
       };
 
       if (key === 'ADDITIONAL') {
+        if (!isAdditionalDepleted && !isExpired) {
+          return;
+        }
         const freeTemplate = templates.get('FREE') ?? DEFAULT_PLAN_DATA.FREE;
 
         updates.planKey = 'FREE';

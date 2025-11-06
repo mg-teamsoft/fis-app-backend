@@ -126,12 +126,14 @@ export async function purchasePlan(userId: string, planKey: string) {
   if (!plan) throw new Error('Plan bulunamadı');
 
   const now = new Date();
-  let endDate = null;
+  let endDate: Date | null = null;
 
-  if (plan.period === 'monthly') {
-    endDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-  } else if (plan.period === 'yearly') {
-    endDate = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+  if (plan.key !== 'ADDITIONAL') {
+    if (plan.period === 'monthly') {
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    } else if (plan.period === 'yearly') {
+      endDate = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+    }
   }
 
   await UserPlan.create({
