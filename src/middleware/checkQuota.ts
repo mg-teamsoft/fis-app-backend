@@ -1,9 +1,10 @@
 // middlewares/checkQuota.ts
 import { NextFunction, Request, Response } from 'express';
 import { UserPlan } from '../models/UserPlanModel';
+import { JwtUtil } from '../utils/jwtUtil';
 
 export const checkImageQuota = async (req: Request, res: Response, next: NextFunction) => {
-const { userId, userName } = await getUserFromReq(req);
+const { userId } = await JwtUtil.extractUser(req);
   const now = new Date();
 
   // Get all active plans
