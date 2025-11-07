@@ -12,7 +12,7 @@ export async function extractReceiptWithOpenAI(lines: string[]): Promise<Receipt
   const prompt = `
 Sen bir fiş/fatura metni yorumlayıcısısın. Aşağıdaki metni incele ve yalnızca JSON formatında yanıt ver.
 Kurallar:
-1. Alanlar: şirket adı, fiş no, toplam tutar, kdv tutarı, kdv oranı (%), işlem tarihi, işlem tipi, ödeme tipi
+1. Alanlar: firmaAd, fisNo, tutar, kdv, kdvOran, islemTarihi, islemTuru, odemeTuru
 2. Toplam tutar ve kdv tutarı değerleri Türk Lirası formatında olmalı (örn: "1.234,56")
 3. İşlem tarihi formatı dd.mm.yyyy olmalı
 4. İşlem tipi yalnızca şu değerlerden biri olabilir: "ALIŞVERİŞ", "YEMEK", "AKARYAKIT", "OTOPARK", "ELEKTRONİK", "İLAÇ", "KIRTASİYE", "DİĞER"
