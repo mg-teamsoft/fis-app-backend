@@ -28,6 +28,7 @@ export const AUDIT_ACTIONS = [
   "USER_PLAN_BY_USER",
   "USER_PLAN_GET",
   "USER_PLAN_DETAILS",
+  "USER_PLAN_UPDATE",
 ] as const;
 
 export type AuditAction = typeof AUDIT_ACTIONS[number];
