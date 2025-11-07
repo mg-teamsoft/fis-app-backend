@@ -2,6 +2,10 @@ import { Request, Response } from 'express';
 import { Plan } from '../models/PlanModel';
 import { UserPlan } from '../models/UserPlanModel';
 
+type PurchasePlanOptions = {
+  userPlanId?: string;
+};
+
 export async function createPlan(req: Request, res: Response) {
   try {
     const { key, name, explanation, quota, period, price, currency } = req.body;
@@ -121,27 +125,52 @@ export async function deletePlan(req: Request, res: Response) {
   }
 }
 
-export async function purchasePlan(userId: string, planKey: string) {
+export async function purchasePlan(userId: string, planKey: string, options: PurchasePlanOptions = {}) {
   const plan = await Plan.findOne({ key: planKey });
   if (!plan) throw new Error('Plan bulunamadı');
 
   const now = new Date();
-  let endDate: Date | null = null;
+  const endDate = calculateEndDate(plan.key, plan.period, now);
 
-  if (plan.key !== 'ADDITIONAL') {
-    if (plan.period === 'monthly') {
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-    } else if (plan.period === 'yearly') {
-      endDate = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-    }
-  }
-
-  await UserPlan.create({
+  const payload = {
     userId,
     planKey,
     quota: plan.quota,
     period: plan.period,
     startDate: now,
     endDate,
-  });
+    isActive: true,
+  };
+
+  if (options.userPlanId) {
+    const updatedPlan = await UserPlan.findOneAndUpdate(
+      { _id: options.userPlanId, userId },
+      payload,
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedPlan) {
+      throw new Error('Güncellenecek kullanıcı planı bulunamadı');
+    }
+
+    return updatedPlan;
+  }
+
+  return UserPlan.create(payload);
+}
+
+function calculateEndDate(planKey: string, period: string, from: Date) {
+  if (planKey === 'ADDITIONAL') {
+    return null;
+  }
+
+  if (period === 'monthly') {
+    return new Date(from.getFullYear(), from.getMonth() + 1, from.getDate());
+  }
+
+  if (period === 'yearly') {
+    return new Date(from.getFullYear() + 1, from.getMonth(), from.getDate());
+  }
+
+  return null;
 }
