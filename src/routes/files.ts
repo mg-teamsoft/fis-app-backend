@@ -17,8 +17,61 @@ function buildKey(userId: string, originalName?: string) {
 
 const router = Router();
 
-// POST /file/init
-// body: { contentType: "image/jpeg", filename?: "foo.jpg", checksumCRC32?, sha256 }
+/**
+ * @swagger
+ * /file/init:
+ *   post:
+ *     summary: Get a presigned PUT URL to upload a receipt image
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [sha256]
+ *             properties:
+ *               contentType:
+ *                 type: string
+ *                 example: image/jpeg
+ *               filename:
+ *                 type: string
+ *               checksumCRC32:
+ *                 type: string
+ *                 description: Optional CRC32 (Base64) to send to S3
+ *               sha256:
+ *                 type: string
+ *                 description: Hex or Base64 sha256 hash used to detect duplicates
+ *     responses:
+ *       200:
+ *         description: Presigned upload information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 key:
+ *                   type: string
+ *                 bucket:
+ *                   type: string
+ *                 presignedUrl:
+ *                   type: string
+ *                 headers:
+ *                   type: object
+ *                   description: Headers that must accompany the upload
+ *                 expiresIn:
+ *                   type: number
+ *                   description: URL expiry in seconds
+ *       400:
+ *         description: Missing sha256
+ *       500:
+ *         description: Error while generating presign
+ */
 router.post("/init", async (req, res) => {
   try {
     const { userId, fullname } = await JwtUtil.extractUser(req);
@@ -94,8 +147,54 @@ router.post("/init", async (req, res) => {
   }
 });
 
-// POST /file/confirm
-// body: { key: "receipts/...", size?: number, mime?: string, sha256?: string }
+/**
+ * @swagger
+ * /file/confirm:
+ *   post:
+ *     summary: Confirm an uploaded object exists (optional helper)
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [key]
+ *             properties:
+ *               key:
+ *                 type: string
+ *                 description: Object key returned from /file/init
+ *               size:
+ *                 type: number
+ *               mime:
+ *                 type: string
+ *               sha256:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Confirms object metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *                 key:
+ *                   type: string
+ *                 size:
+ *                   type: number
+ *                 mime:
+ *                   type: string
+ *       400:
+ *         description: Missing key
+ *       500:
+ *         description: Error during confirm
+ */
 router.post("/confirm", async (req, res) => {
   try {
     const { key, size, mime, sha256 } = req.body || {};
@@ -124,7 +223,42 @@ router.post("/confirm", async (req, res) => {
   }
 });
 
-// GET /files/view-url?key=...
+/**
+ * @swagger
+ * /file/view-url:
+ *   get:
+ *     summary: Get a temporary GET URL for a stored object
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: key
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: S3 object key to view
+ *     responses:
+ *       200:
+ *         description: Presigned GET URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 key:
+ *                   type: string
+ *                 url:
+ *                   type: string
+ *                 expiresIn:
+ *                   type: number
+ *       400:
+ *         description: Missing key
+ *       500:
+ *         description: Error generating URL
+ */
 router.get("/view-url", async (req, res) => {
   try {
     const key = String(req.query.key || "");

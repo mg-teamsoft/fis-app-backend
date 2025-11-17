@@ -6,8 +6,35 @@ import { JwtUtil } from "../utils/jwtUtil";
 const router = Router();
 
 /**
- * GET /jobs/:jobId
- * Returns a single job (only if owned by the requester).
+ * @swagger
+ * /job/{jobId}:
+ *   get:
+ *     summary: Get a single job you own
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job detail
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 job:
+ *                   $ref: '#/components/schemas/Job'
+ *       404:
+ *         description: Job not found
+ *       500:
+ *         description: Server error
  */
 router.get("/:jobId", async (req: Request, res: Response) => {
   try {
@@ -39,12 +66,52 @@ router.get("/:jobId", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs
- * Query params:
- *  - status: queued|processing|done|error (optional)
- *  - page: number (default 1)
- *  - limit: number (default 20, max 100)
- * Lists jobs belonging to the current user, newest first.
+ * @swagger
+ * /job:
+ *   get:
+ *     summary: List your jobs
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [queued, processing, done, error]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Paged list of jobs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 page:
+ *                   type: integer
+ *                 limit:
+ *                   type: integer
+ *                 total:
+ *                   type: integer
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/JobListItem'
+ *       500:
+ *         description: Server error
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -87,8 +154,38 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/:jobId/receipt
- * Returns only the parsed receipt JSON for the job (if present).
+ * @swagger
+ * /job/{jobId}/receipt:
+ *   get:
+ *     summary: Get parsed receipt JSON for a job
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Receipt (or null if still processing)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 receipt:
+ *                   $ref: '#/components/schemas/ReceiptData'
+ *                   nullable: true
+ *                 message:
+ *                   type: string
+ *       404:
+ *         description: Job not found
+ *       500:
+ *         description: Server error
  */
 router.get("/:jobId/receipt", async (req: Request, res: Response) => {
   try {
@@ -109,8 +206,26 @@ router.get("/:jobId/receipt", async (req: Request, res: Response) => {
 });
 
 /**
- * DELETE /jobs/:jobId
- * Deletes a job you own (optional — useful to clean up).
+ * @swagger
+ * /job/{jobId}:
+ *   delete:
+ *     summary: Delete a job you own
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job deleted
+ *       404:
+ *         description: Job not found or not owned by user
+ *       500:
+ *         description: Server error
  */
 router.delete("/:jobId", async (req: Request, res: Response) => {
   try {

@@ -1,8 +1,15 @@
 # FIS_APP
 
-This application processes receipt images, extracts text using OCR, and parses relevant fields such as date, total amount, and tax. Final results are exported to Excel.
+Backend for the receipt OCR pipeline. It presigns uploads to S3, runs OCR + parsing, tracks async jobs, and writes per-user Excel workbooks.
 
-## 📂 Folder Structure
+## What It Does
+- Presigned S3 upload flow with duplicate detection via `sha256`
+- Async OCR job runner (Tesseract → Textract → OpenAI fallback) with status tracking in MongoDB
+- Manual Excel append endpoint (per-user workbook stored in S3)
+- Auth + email verification; most routes are JWT-protected
+- Swagger UI available at `http://localhost:3000/api-docs`
+
+## Folder Structure
 
 ```
 FIS_APP/
@@ -23,79 +30,34 @@ FIS_APP/
 └── tsconfig.json     # TypeScript config
 ```
 
-## 🛠️ Features
-
-- 🖼 Upload image files via REST API
-- 📖 Run OCR (Tesseract) via Python script
-- 📄 Parse receipts into structured data
-- 📥 Export to Excel
-- ✅ Swagger UI for documentation
-- 🔒 Role-based access in future scope
-
-## 🚀 Run Instructions
-
-```bash
-npm install
-npm run dev        # with nodemon
-npm run build      # compile to dist/
-npm run start      # run built app
-```
-
-## 🐳 Docker Workflow
-
-### Compose basics
-
-- Ensure Docker and Docker Compose are installed locally.
-- Copy or create an environment file for your target stage (for example `.env.dev` or `.env.prod`). The compose stack reads the file declared via the `ENV` flag in the Makefile (defaults to `.env.dev`).
-- Build and start the stack:
-  ```bash
-  docker-compose --env-file .env.dev -p fis-app up -d --build
-  ```
-- Stop the stack:
-  ```bash
-  docker-compose -p fis-app down
-  ```
-
-### Using the provided Makefile
-
-Most common Docker Compose commands are aliased in the root `Makefile`.
-
-```bash
-# start services (defaults to ENV=dev)
-make up
-
-# build containers without starting
-make build
-
-# watch logs or inspect status
-make logs
-make ps
-
-# stop services when you're done
-make down
-```
-
-Switch between environments by overriding `ENV`:
-
-```bash
-make up ENV=prod
-```
-
-The Make targets also include helpers such as `make shell` (opens a shell in the backend container), `make mongo-shell` (Mongo shell), `make test`, and `make prune`. Run `make help` to see the full list.
-
-### Container health checks
-
-The Dockerfile exposes port `3000` and defines health checks against `/health-me` and `/health-me/db`. Ensure the `dist/` build exists before building the image (`npm run build`) or mount the source in development mode via compose.
-
-## 📚 API Documentation
-
-Swagger available at: `http://localhost:<PORT>/docs`
-
----
-
-## 🔧 Requirements
-
+## Requirements
 - Node.js 18+
-- Python 3.x
-- Tesseract installed
-- `tur.traineddata` copied into Tesseract's `tessdata` directory
+- MongoDB (set `MONGODB_URI` and optionally `MONGODB_DB`)
+- AWS S3 credentials (`S3_BUCKET`, `AWS_REGION`, `S3_UPLOAD_PREFIX`)
+- JWT secret/keys (`JWT_SECRET` or `JWT_PUBLIC_KEY`/`JWT_JWKS_URL`)
+- Python 3.x + Tesseract (`tur.traineddata` in your tessdata path) for local OCR
+
+## Local Run
+1. Copy `.env.example` if present (or create `.env`) and set at least:  
+   `PORT=3000`, `MONGODB_URI=mongodb://localhost:27017/fis`, `S3_BUCKET=...`, `JWT_SECRET=...`, `FRONTEND_URL=...`
+2. Install deps: `npm install`
+3. Start dev server: `npm run dev` (or `npm run start` after `npm run build`)
+4. Swagger UI: `http://localhost:3000/api-docs` (API base path is `/api`)
+
+Docker Compose is available for Mongo + API: `docker-compose up -d --build`. Use the Makefile shortcuts (`make up`, `make down`, `make logs`, etc.) if you prefer.
+
+## API Quickstart (JWT required unless noted)
+Base URL: `http://localhost:3000/api`
+
+1. Authenticate: `POST /auth/login` to get a Bearer token (register via `POST /auth/register` during development).
+2. Presign upload: `POST /file/init` with `{ sha256, contentType, filename }` → returns `key`, `presignedUrl`, and required headers. Upload the file directly to S3 using that URL.
+3. (Optional) Confirm object: `POST /file/confirm` with `{ key }` to verify metadata.
+4. Start OCR job: `POST /upload/by-key` with `{ key, mime }` → returns `jobId` (requires verified email).
+5. Poll status: `GET /job/{jobId}` or `GET /job/{jobId}/receipt` until `status` becomes `done`.
+6. Save to Excel: `POST /excel/write` with `receiptJson` to append to the user's workbook; fetch presigned download via `GET /excel/files/{id}/presign`.
+7. Synchronous fallback: `POST /image/upload` (multipart `receipts[]`) runs OCR immediately and returns parsed data in the response body.
+
+Troubleshooting tips:
+- Ensure your JWT uses the same issuer/audience configured in env.
+- `/upload/by-key` returns 403 until the user verifies email via the link sent on registration.
+- Missing `S3_BUCKET` or `MONGODB_URI` will make the server exit during startup.
