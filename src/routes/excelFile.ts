@@ -10,10 +10,46 @@ import { mapReceiptDataToReceiptModel } from '../utils/receiptMapper';
 const router = Router();
 
 /**
- * @route POST /excel/write
- * @desc  Write a single ReceiptData row into output/receipts.xlsx
- * @body  { key: string, receiptJson: ReceiptData | string }
- * @returns { status: "success"|"error", message: string, filePath?: string }
+ * @swagger
+ * /excel/write:
+ *   post:
+ *     summary: Append a parsed receipt into the user Excel workbook (S3)
+ *     tags: [Excel]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               key:
+ *                 type: string
+ *                 description: Optional source key of the file being written
+ *               receiptJson:
+ *                 oneOf:
+ *                   - $ref: '#/components/schemas/ReceiptData'
+ *                   - type: string
+ *                     description: JSON stringified ReceiptData
+ *     responses:
+ *       200:
+ *         description: Receipt appended to Excel
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *                 filePath:
+ *                   type: string
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Write failed
  */
 router.post('/write',
   auditInterceptor("FILE_WRITE"),
@@ -83,8 +119,31 @@ router.post('/write',
   });
 
 /**
- * GET /excel/files
- * List the (single) Excel file for the current user.
+ * @swagger
+ * /excel/files:
+ *   get:
+ *     summary: List Excel workbooks for the current user
+ *     tags: [Excel]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Excel file metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 files:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Error listing files
  */
 router.get("/files", auditInterceptor("FILE_LIST"), async (req, res) => {
   try {
@@ -104,8 +163,40 @@ router.get("/files", auditInterceptor("FILE_LIST"), async (req, res) => {
 });
 
 /**
- * GET /excel/files/:id/presign
- * Get a fresh pre-signed GET URL (id = _id or s3Key).
+ * @swagger
+ * /excel/files/{id}/presign:
+ *   get:
+ *     summary: Get a presigned GET URL for an Excel file
+ *     tags: [Excel]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Mongo _id or S3 key
+ *     responses:
+ *       200:
+ *         description: Presigned URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 key:
+ *                   type: string
+ *                 url:
+ *                   type: string
+ *                 expiresIn:
+ *                   type: number
+ *       404:
+ *         description: File not found
+ *       500:
+ *         description: Presign failed
  */
 router.get("/files/:id/presign", async (req, res) => {
   try {

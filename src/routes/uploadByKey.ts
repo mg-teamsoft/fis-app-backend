@@ -6,8 +6,49 @@ import { requireVerifiedEmail } from "../middleware/requireVerifiedEmail";
 
 const router = Router();
 
-// POST /upload/by-key
-// body: { key: "receipts/.../uuid.jpg", mime?: "image/jpeg" }
+/**
+ * @swagger
+ * /upload/by-key:
+ *   post:
+ *     summary: Start async OCR job from an object already in S3
+ *     description: Requires a verified email. Use /file/init to get a presigned URL first, then call this to start processing.
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [key]
+ *             properties:
+ *               key:
+ *                 type: string
+ *                 description: S3 object key (e.g., receipts/{userId}/2024/05/uuid.jpg)
+ *               mime:
+ *                 type: string
+ *                 description: Optional content-type override
+ *     responses:
+ *       200:
+ *         description: Job created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 jobId:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Missing key
+ *       500:
+ *         description: Server error starting job
+ */
 router.post("/by-key", requireVerifiedEmail, async (req, res) => {
   try {
     const { userId: userId, fullname: userName } = await JwtUtil.extractUser(req);
