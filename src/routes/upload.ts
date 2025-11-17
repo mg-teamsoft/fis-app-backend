@@ -27,10 +27,13 @@ const router = Router();
 
 /**
  * @swagger
- * /upload:
+ * /image/upload:
  *   post:
- *     summary: Upload multiple receipt images and generate a single Excel file
+ *     summary: Upload multiple receipt images and get parsed data immediately
+ *     description: Direct upload endpoint that runs OCR + parsing synchronously (use /upload/by-key for async jobs).
  *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -46,14 +49,14 @@ const router = Router();
  *                 description: One or more receipt image files
  *     responses:
  *       200:
- *         description: Returns a single jobId for the batch
+ *         description: Parsed receipt response for the uploaded images
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 jobId:
- *                   type: string
+ *                 response:
+ *                   $ref: '#/components/schemas/ReceiptData'
  *                 message:
  *                   type: string
  *       400:
