@@ -169,7 +169,7 @@ router.post("/request-password-reset", async (req: Request, res: Response) => {
     await user.save();
 
     const baseUrl = process.env.FRONTEND_URL ?? '';
-    const resetLink = baseUrl ? `${baseUrl}/reset-password?token=${token}` : token;
+    const resetLink = baseUrl ? `${baseUrl}/api/auth/reset-password?token=${token}` : token;
 
     await sendPasswordResetEmail(user.email!, resetLink);
 
