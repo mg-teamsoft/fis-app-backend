@@ -168,8 +168,10 @@ router.post("/request-password-reset", async (req: Request, res: Response) => {
     user.passwordResetExpires = expires;
     await user.save();
 
-    const baseUrl = process.env.FRONTEND_URL ?? '';
-    const resetLink = baseUrl ? `${baseUrl}/api/auth/reset-password?token=${token}` : token;
+    const frontendBase = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '');
+    const resetLink = frontendBase
+      ? `${frontendBase}/resetPassword?token=${token}`
+      : token;
 
     await sendPasswordResetEmail(user.email!, resetLink);
 
