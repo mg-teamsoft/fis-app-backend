@@ -105,7 +105,7 @@ router.post('/write',
       if (e.code === 11000) {
         // Duplicate key error
         console.error('Duplicate receipt already exists.');
-        return res.status(401).json({
+        return res.status(400).json({
           status: 'error',
           message: 'Duplicate receipt already exists with businessName, receiptNumber and date).',
         });
