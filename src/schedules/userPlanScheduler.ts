@@ -6,14 +6,14 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PLAN_DATA = {
   [PlanKey.FREE]: { quota: 5, period: PlanPeriod.MONTHLY as const },
   [PlanKey.MONTHLY_100]: { quota: 100, period: PlanPeriod.MONTHLY  as const },
-  [PlanKey.YEARLY_1000]: { quota: 1000, period: PlanPeriod.YEARLY as const },
+  [PlanKey.YEARLY_1200]: { quota: 1200, period: PlanPeriod.YEARLY as const },
 };
 
 async function resetExpiredUserPlans() {
   const now = new Date();
 
   const [templatePlans, userPlans] = await Promise.all([
-    Plan.find({ key: { $in: [PlanKey.FREE, PlanKey.MONTHLY_100, PlanKey.YEARLY_1000] } }).lean(),
+    Plan.find({ key: { $in: [PlanKey.FREE, PlanKey.MONTHLY_100, PlanKey.YEARLY_1200] } }).lean(),
     UserPlan.find(),
   ]);
 
