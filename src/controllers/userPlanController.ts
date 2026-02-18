@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { UserPlan } from '../models/UserPlanModel';
-import { Plan } from '../models/PlanModel';
+import { Plan, PlanKey } from '../models/PlanModel';
 import { JwtUtil } from '../utils/jwtUtil';
 import { purchasePlan } from './planController';
 
@@ -59,6 +59,9 @@ export async function updateUserPlan(req: Request, res: Response) {
     if (!planKey) {
       return res.status(400).json({ message: 'planKey is required.' });
     }
+    if (!Object.values(PlanKey).includes(planKey)) {
+      return res.status(400).json({ message: 'Invalid planKey.' });
+    }
 
     const { userId } = await JwtUtil.extractUser(req);
     if (!userId) {
@@ -68,6 +71,14 @@ export async function updateUserPlan(req: Request, res: Response) {
     const existingPlan = await UserPlan.findOne({ _id: req.params.id, userId });
     if (!existingPlan) {
       return res.status(404).json({ message: 'User plan not found.' });
+    }
+
+    const selectedPlan = await Plan.findOne({ key: planKey }).lean();
+    if (!selectedPlan) {
+      return res.status(404).json({ message: 'Plan not found.' });
+    }
+    if (selectedPlan.isActive === false) {
+      return res.status(400).json({ message: 'Plan is inactive.' });
     }
 
     const updatedPlan = await purchasePlan(existingPlan.userId, planKey, {

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { Plan } from '../models/PlanModel';
+import { Plan, PlanKey } from '../models/PlanModel';
 import { UserPlan } from '../models/UserPlanModel';
+import { PlanUtil } from '../utils/planUtil';
 
 type PurchasePlanOptions = {
   userPlanId?: string;
@@ -8,7 +9,7 @@ type PurchasePlanOptions = {
 
 export async function createPlan(req: Request, res: Response) {
   try {
-    const { key, name, explanation, quota, period, price, currency } = req.body;
+    const { key, name, explanation, quota, period, price, currency, storeIds, productType, isActive } = req.body;
 
     const plan = await Plan.create({
       key,
@@ -18,6 +19,9 @@ export async function createPlan(req: Request, res: Response) {
       period,
       price,
       currency,
+      isActive,
+      storeIds,
+      productType,
     });
 
     res.locals.auditPayload = { planId: plan.id, planKey: plan.key };
@@ -60,7 +64,9 @@ export async function getPlanById(req: Request, res: Response) {
 
 export async function updatePlan(req: Request, res: Response) {
   try {
-    const updatableFields: Array<'key' | 'name' | 'explanation' | 'quota' | 'period' | 'price' | 'currency'> = [
+    const updatableFields: Array<
+      'key' | 'name' | 'explanation' | 'quota' | 'period' | 'price' | 'currency' | 'storeIds' | 'productType' | 'isActive'
+    > = [
       'key',
       'name',
       'explanation',
@@ -68,6 +74,9 @@ export async function updatePlan(req: Request, res: Response) {
       'period',
       'price',
       'currency',
+      'storeIds',
+      'productType',
+      'isActive',
     ];
     const updates: Record<string, unknown> = {};
 
@@ -128,9 +137,10 @@ export async function deletePlan(req: Request, res: Response) {
 export async function purchasePlan(userId: string, planKey: string, options: PurchasePlanOptions = {}) {
   const plan = await Plan.findOne({ key: planKey });
   if (!plan) throw new Error('Plan bulunamadı');
+  if (plan.isActive === false) throw new Error('Plan aktif değil');
 
   const now = new Date();
-  const endDate = calculateEndDate(plan.key, plan.period, now);
+  const endDate = PlanUtil.getNextEndDate({ planKey: plan.key, period: plan.period, from: now });
 
   const payload = {
     userId,
@@ -157,20 +167,4 @@ export async function purchasePlan(userId: string, planKey: string, options: Pur
   }
 
   return UserPlan.create(payload);
-}
-
-function calculateEndDate(planKey: string, period: string, from: Date) {
-  if (planKey === 'ADDITIONAL') {
-    return null;
-  }
-
-  if (period === 'monthly') {
-    return new Date(from.getFullYear(), from.getMonth() + 1, from.getDate());
-  }
-
-  if (period === 'yearly') {
-    return new Date(from.getFullYear() + 1, from.getMonth(), from.getDate());
-  }
-
-  return null;
 }
