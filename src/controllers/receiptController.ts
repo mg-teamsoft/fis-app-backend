@@ -156,9 +156,10 @@ export async function getReceiptDetail(req: Request, res: Response) {
 
         // Generate signed URL for the image
         let signedImageUrl = '';
-        if (receipt.imageUrl) {
-            await createPresignedGetUrl(receipt.imageUrl).then((url) => {
+        if (receipt.sourceKey) {
+            await createPresignedGetUrl(receipt.sourceKey).then((url) => {
                 signedImageUrl = url;
+            
             }).catch((error) => {
                 console.error('Error generating presigned URL:', error);
             });
