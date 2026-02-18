@@ -1,19 +1,19 @@
-import dayjs from 'dayjs';
 import { UserPlan } from '../models/UserPlanModel';
-import { Plan } from '../models/PlanModel';
+import { Plan, PlanKey, PlanPeriod } from '../models/PlanModel';
+import { PlanUtil } from '../utils/planUtil';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PLAN_DATA = {
-  FREE: { quota: 5, period: 'monthly' as const },
-  MONTHLY: { quota: 100, period: 'monthly' as const },
-  YEARLY: { quota: 1000, period: 'yearly' as const },
+  [PlanKey.FREE]: { quota: 5, period: PlanPeriod.MONTHLY as const },
+  [PlanKey.MONTHLY_100]: { quota: 100, period: PlanPeriod.MONTHLY  as const },
+  [PlanKey.YEARLY_1000]: { quota: 1000, period: PlanPeriod.YEARLY as const },
 };
 
 async function resetExpiredUserPlans() {
   const now = new Date();
 
   const [templatePlans, userPlans] = await Promise.all([
-    Plan.find({ key: { $in: ['FREE', 'MONTHLY', 'YEARLY'] } }).lean(),
+    Plan.find({ key: { $in: [PlanKey.FREE, PlanKey.MONTHLY_100, PlanKey.YEARLY_1000] } }).lean(),
     UserPlan.find(),
   ]);
 
@@ -23,7 +23,7 @@ async function resetExpiredUserPlans() {
   await Promise.all(
     userPlans.map(async (userPlan) => {
       const isExpired = !!userPlan.endDate && userPlan.endDate <= now;
-      const isAdditionalDepleted = userPlan.planKey === 'ADDITIONAL' && userPlan.quota <= 0;
+      const isAdditionalDepleted = userPlan.planKey === PlanKey.ADDITIONAL_100 && userPlan.quota <= 0;
 
       if (!isExpired && !isAdditionalDepleted) {
         return;
@@ -35,24 +35,36 @@ async function resetExpiredUserPlans() {
         startDate: now,
       };
 
-      if (key === 'ADDITIONAL') {
+      if (key === PlanKey.ADDITIONAL_100) {
         if (!isAdditionalDepleted && !isExpired) {
           return;
         }
-        const freeTemplate = templates.get('FREE') ?? DEFAULT_PLAN_DATA.FREE;
+        const freeTemplate = templates.get(PlanKey.FREE);
+        const freePlan = freeTemplate ?? DEFAULT_PLAN_DATA[PlanKey.FREE];
 
-        updates.planKey = 'FREE';
-        updates.period = freeTemplate.period;
-        updates.quota = freeTemplate.quota;
-        updates.endDate = getNextEndDate(freeTemplate.period, now);
+        updates.planKey = PlanKey.FREE;
+        updates.period = freePlan.period;
+        updates.quota = freePlan.quota;
+        updates.endDate = PlanUtil.getNextEndDate({ period: freePlan.period, from: now });
       } else {
-        const template =
-          templates.get(key as 'FREE' | 'MONTHLY' | 'YEARLY') ??
-          DEFAULT_PLAN_DATA[key as 'FREE' | 'MONTHLY' | 'YEARLY'];
+        const planKey = key as PlanKey;
+        const template = templates.get(planKey);
+        const templatePlan =
+          template ?? DEFAULT_PLAN_DATA[planKey as Exclude<PlanKey, typeof PlanKey.ADDITIONAL_100>];
 
-        updates.quota = template.quota;
-        updates.period = template.period;
-        updates.endDate = getNextEndDate(template.period, now);
+        if (template?.isActive === false) {
+          const freeTemplate = templates.get(PlanKey.FREE);
+          const freePlan = freeTemplate ?? DEFAULT_PLAN_DATA[PlanKey.FREE];
+
+          updates.planKey = PlanKey.FREE;
+          updates.period = freePlan.period;
+          updates.quota = freePlan.quota;
+          updates.endDate = PlanUtil.getNextEndDate({ period: freePlan.period, from: now });
+        } else {
+          updates.quota = templatePlan.quota;
+          updates.period = templatePlan.period;
+          updates.endDate = PlanUtil.getNextEndDate({ period: templatePlan.period, from: now });
+        }
       }
 
       userPlan.set(updates);
@@ -63,18 +75,6 @@ async function resetExpiredUserPlans() {
 
   if (resetCount > 0) {
     console.log(`[UserPlanScheduler] Reset quotas for ${resetCount} user plans at ${new Date().toISOString()}`);
-  }
-}
-
-function getNextEndDate(period: string, from: Date) {
-  const base = dayjs(from);
-  switch (period) {
-    case 'monthly':
-      return base.add(1, 'month').toDate();
-    case 'yearly':
-      return base.add(1, 'year').toDate();
-    default:
-      return null;
   }
 }
 

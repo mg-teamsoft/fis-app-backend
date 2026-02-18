@@ -1,5 +1,4 @@
 import { ReceiptData } from "../types/receiptTypes";
-import { ReceiptModel } from "../models/ReceiptModel"; // adjust import path
 
 export function mapReceiptDataToReceiptModel(
   data: ReceiptData,

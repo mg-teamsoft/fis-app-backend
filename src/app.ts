@@ -19,6 +19,7 @@ import userPlanRoutes from "./routes/userPlans";
 import { requireAuth } from './middleware/authJwt';
 import morgan from "morgan";
 import { healthRouter } from './routes/health';
+import iapRoutes from './routes/iapRoutes';
 
 const app = express();
 app.use(cors())
@@ -53,6 +54,7 @@ app.use("/plans", requireAuth(), planRoutes);
 app.use("/home", requireAuth(), homeSummaryRoutes);
 app.use("/users", requireAuth(), userRoutes);
 app.use("/user-plans", requireAuth(), userPlanRoutes);
+app.use("/iap", requireAuth(), iapRoutes);
 
 //  Setup Swagger API Docs
 setupSwagger(app);
