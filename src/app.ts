@@ -15,6 +15,7 @@ import planRoutes, { publicPlanRoutes } from "./routes/plans";
 import homeSummaryRoutes from "./routes/homeSummary";
 import userRoutes from "./routes/users";
 import userPlanRoutes from "./routes/userPlans";
+import purchaseRoutes from "./routes/purchasesRoutes";
 
 import { requireAuth } from './middleware/authJwt';
 import morgan from "morgan";
@@ -55,6 +56,8 @@ app.use("/home", requireAuth(), homeSummaryRoutes);
 app.use("/users", requireAuth(), userRoutes);
 app.use("/user-plans", requireAuth(), userPlanRoutes);
 app.use("/iap", requireAuth(), iapRoutes);
+app.use("/purchases", requireAuth(), purchaseRoutes);
+
 
 //  Setup Swagger API Docs
 setupSwagger(app);
