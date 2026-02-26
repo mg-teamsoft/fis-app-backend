@@ -5,6 +5,7 @@ uploads/
 output/
 logs/
 .env*
+secrets/
 
 tur.traineddata
 
