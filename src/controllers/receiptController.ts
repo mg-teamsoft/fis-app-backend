@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { monthNameTr } from '../utils/dateUtil';
 import { ReceiptDataListItem } from '../types/receiptTypes';
 import { createPresignedGetUrl } from '../services/s3Service';
+import { consumeQuota } from '../utils/consumeQuota';
 
 export async function createReceipt(req: Request, res: Response) {
     try {
@@ -34,6 +35,18 @@ export async function createReceipt(req: Request, res: Response) {
         }
 
         const receipt = await ReceiptModel.create(receiptBody);
+
+        try {
+            await consumeQuota(userId);
+        } catch (quotaError: any) {
+            // Keep business rule consistent: receipt creation must cost quota.
+            await ReceiptModel.deleteOne({ _id: receipt._id, userId }).catch(() => { });
+            return res.status(403).json({
+                message: 'Paket hakkınız kalmadı. Yeni bir plan satın alın.',
+                error: quotaError?.message,
+            });
+        }
+
         return res.status(201).json(receipt);
     } catch (error: any) {
         if (error.code === 11000) {

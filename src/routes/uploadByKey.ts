@@ -3,6 +3,7 @@ import { getObjectBuffer } from "../services/s3Service";
 import { startJobFromBuffer } from "../services/jobProcessor"; // add function below
 import { JwtUtil } from "../utils/jwtUtil";
 import { requireVerifiedEmail } from "../middleware/requireVerifiedEmail";
+import { checkImageQuota } from "../middleware/checkQuota";
 
 const router = Router();
 
@@ -49,7 +50,7 @@ const router = Router();
  *       500:
  *         description: Server error starting job
  */
-router.post("/by-key", requireVerifiedEmail, async (req, res) => {
+router.post("/by-key", requireVerifiedEmail, checkImageQuota, async (req, res) => {
   try {
     const { userId: userId, fullname: userName } = await JwtUtil.extractUser(req);
     const { key, mime } = req.body || {};
