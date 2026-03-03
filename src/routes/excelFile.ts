@@ -4,8 +4,8 @@ import { auditInterceptor } from '../middleware/auditInterceptor';
 import { JwtUtil } from '../utils/jwtUtil';
 import { writeReceiptToS3WithMonthlySheets } from '../services/excelWriterWithExcelJs';
 import { listUserExcelFiles, presignExcelGetUrl } from '../services/excelWriterService';
-import ReceiptModel from '../models/ReceiptModel';
 import { mapReceiptDataToReceiptModel } from '../utils/receiptMapper';
+import { createReceiptInternal } from '../controllers/receiptController';
 
 const router = Router();
 
@@ -55,6 +55,9 @@ router.post('/write',
   auditInterceptor("FILE_WRITE"),
   async (req: Request, res: Response) => {
     const { userId, fullname } = await JwtUtil.extractUser(req); const body = req.body as { key?: string; receiptJson?: ReceiptData | string } | undefined;
+    if (!userId) {
+      return { ok: false, status: 401, body: { message: 'Unauthorized' } };
+    }
     const sourceKey = body?.key;
     const rawReceipt = body?.receiptJson;
 
@@ -95,23 +98,19 @@ router.post('/write',
       });
     }
 
-    let savedReceiptId: string | null = null;
-    try {
-      const receiptModelObject = mapReceiptDataToReceiptModel(payload, userId, '', sourceKey);
-      const savedReceipt = await ReceiptModel.create(receiptModelObject);
-      savedReceiptId = savedReceipt.id.toString();
-      console.log('Receipt saved to database for user:', userId);
-    } catch (e: any) {
-      if (e.code === 11000) {
-        // Duplicate key error
-        console.error('Duplicate receipt already exists.');
-        return res.status(400).json({
-          status: 'error',
-          message: 'Duplicate receipt already exists with businessName, receiptNumber and date).',
-        });
-      }
-      console.error('Failed to save receipt to database:', e);
+    const receiptModelObject = mapReceiptDataToReceiptModel(payload, userId, '', sourceKey);
+    const createReceiptResult = await createReceiptInternal(req, {
+      bodyOverride: receiptModelObject,
+    });
+
+    if (!createReceiptResult.ok) {
+      console.error('Failed to create receipt from /excel/write flow:', createReceiptResult.body);
+      return res.status(createReceiptResult.status).json({
+        status: 'error',
+        ...(createReceiptResult.body ?? { message: 'Receipt create failed.' }),
+      });
     }
+    console.log('Receipt saved to database for user:', userId);
 
     const result = await writeReceiptToS3WithMonthlySheets(userId, fullname, payload);
     console.log(`Excel write result for user ${userId}:`, result);

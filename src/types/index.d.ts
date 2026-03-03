@@ -8,3 +8,4 @@ declare module 'express-serve-static-core' {
     files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] };
   }
 }
+
