@@ -8,13 +8,26 @@ import { ReceiptDataListItem } from '../types/receiptTypes';
 import { createPresignedGetUrl } from '../services/s3Service';
 import { consumeQuota } from '../utils/consumeQuota';
 
-export async function createReceipt(req: Request, res: Response) {
+type CreateReceiptOptions = {
+    bodyOverride?: Record<string, any>;
+};
+
+type CreateReceiptResult = {
+    ok: boolean;
+    status: number;
+    body?: any;
+    receipt?: any;
+};
+
+export async function createReceiptInternal(req: Request, options?: CreateReceiptOptions): Promise<CreateReceiptResult> {
     try {
         const { userId: userId, fullname: fullname } = await JwtUtil.extractUser(req);
-        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+        if (!userId) {
+            return { ok: false, status: 401, body: { message: 'Unauthorized' } };
+        }
 
         const receiptBody = {
-            ...req.body,
+            ...(options?.bodyOverride ?? req.body),
             userId,
         };
 
@@ -41,21 +54,32 @@ export async function createReceipt(req: Request, res: Response) {
         } catch (quotaError: any) {
             // Keep business rule consistent: receipt creation must cost quota.
             await ReceiptModel.deleteOne({ _id: receipt._id, userId }).catch(() => { });
-            return res.status(403).json({
+            const quotaResponse = {
                 message: 'Paket hakkınız kalmadı. Yeni bir plan satın alın.',
                 error: quotaError?.message,
-            });
+            };
+            return { ok: false, status: 403, body: quotaResponse };
         }
 
-        return res.status(201).json(receipt);
+        return { ok: true, status: 201, receipt };
     } catch (error: any) {
         if (error.code === 11000) {
-            return res.status(409).json({
+            const duplicateResponse = {
                 message: 'Receipt already exists with this businessName, receiptNumber and transactionDate.',
-            });
+            };
+            return { ok: false, status: 409, body: duplicateResponse };
         }
-        return res.status(500).json({ message: 'Internal server error. ', error: error.message });
+        const errorResponse = { message: 'Internal server error. ', error: error.message };
+        return { ok: false, status: 500, body: errorResponse };
     }
+}
+
+export async function createReceipt(req: Request, res: Response) {
+    const result = await createReceiptInternal(req);
+    if (!result.ok) {
+        return res.status(result.status).json(result.body);
+    }
+    return res.status(result.status).json(result.receipt);
 }
 
 export async function listReceipts(req: Request, res: Response) {
