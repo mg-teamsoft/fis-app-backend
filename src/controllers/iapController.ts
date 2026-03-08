@@ -2,13 +2,20 @@ import { Request, Response } from "express";
 import { verifyAppleTransactionAndGrantEntitlement } from "../services/iapAppleModernService";
 import { JwtUtil } from "../utils/jwtUtil";
 
+// POST /api/iap/apple/verify
+// Body: { productId: string, transactionId: string }
 export async function verifyApplePurchase(req: Request, res: Response) {
   const { userId } = await JwtUtil.extractUser(req);
   const { productId, transactionId } = req.body ?? {};
 
+  if (!userId) {
+    return res.status(401).json({ status: "error", message: "Unauthorized" });
+  }
+
   if (!productId || typeof productId !== "string") {
     return res.status(400).json({ status: "error", message: "productId is required" });
   }
+
   if (!transactionId || typeof transactionId !== "string") {
     return res.status(400).json({ status: "error", message: "transactionId is required" });
   }
@@ -19,9 +26,11 @@ export async function verifyApplePurchase(req: Request, res: Response) {
       productId,
       transactionId,
     });
+
     return res.json({ status: "ok", entitlement });
   } catch (err: any) {
-    return res.status(err?.statusCode ?? 500).json({
+    const status = err?.statusCode ?? 500;
+    return res.status(status).json({
       status: "error",
       message: err?.message ?? "Verification failed",
     });

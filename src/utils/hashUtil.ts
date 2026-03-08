@@ -1,10 +1,23 @@
 // src/utils/hashUtil.ts
 export function normalizeSha256(input: string): string {
-  // Accept hex or base64 from clients; store hex lowercase
+  // Accept hex or base64/base64url from clients; store lowercase hex.
+  const value = String(input || "").trim();
   const hexRegex = /^[0-9a-fA-F]{64}$/;
-  if (hexRegex.test(input)) return input.toLowerCase();
-  // If base64 was sent, convert to hex
-  const buf = Buffer.from(input, "base64");
+  if (hexRegex.test(value)) return value.toLowerCase();
+
+  // Normalize base64url -> base64 and restore padding.
+  const base64Candidate = value.replace(/-/g, "+").replace(/_/g, "/");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Candidate)) {
+    throw new Error("Invalid sha256 format");
+  }
+  const padded = base64Candidate.padEnd(Math.ceil(base64Candidate.length / 4) * 4, "=");
+  const buf = Buffer.from(padded, "base64");
+
+  // SHA-256 digest must be exactly 32 bytes.
+  if (buf.length !== 32) {
+    throw new Error("Invalid sha256 length");
+  }
+
   return buf.toString("hex");
 }
 
