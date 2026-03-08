@@ -4,7 +4,7 @@ import mongoose, { Schema, InferSchemaType } from "mongoose";
 const AssetSchema = new Schema(
   {
     userId: { type: String, index: true },
-    sha256: { type: String, required: true, index: true , unique: false}, // hex (lowercase) or base64; pick one
+    sha256: { type: String, required: true, index: true }, // normalized lowercase hex
     key: { type: String, required: true, unique: true },
     size: { type: Number },
     contentType: { type: String },
@@ -15,7 +15,7 @@ const AssetSchema = new Schema(
   { versionKey: false }
 );
 
-// AssetSchema.index({ sha256: 1 }, { unique: false });
+AssetSchema.index({ userId: 1, sha256: 1 }, { unique: true, name: "uniq_user_sha256" });
 
 export type AssetDoc = InferSchemaType<typeof AssetSchema>;
 export const AssetModel = mongoose.model<AssetDoc>("assets", AssetSchema);

@@ -1,4 +1,4 @@
-import { getTransactionInfo } from "./apple/appleServerApiClient";
+import { getTransactionHistory } from "./apple/appleServerApiClient";
 import { decodeJwsPayload } from "./apple/jws";
 import { PurchaseTransaction } from "../models/PurchaseTransactionModel";
 import { Plan, PlanKey } from "../models/PlanModel";
@@ -27,62 +27,105 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
   }
   console.log("[IAP][Step 1/8] Plan found", { planKey: plan.key, productType: plan.productType });
 
-  // 2) Idempotency
-  console.log("[IAP][Step 2/8] Check existing verified transaction", { transactionId });
-  const existing = await PurchaseTransaction.findOne({ platform: "ios", transactionId }).lean();
-  if (existing?.status === "verified") {
-    console.log("[IAP][Step 2/8] Existing verified transaction found, returning entitlement snapshot", {
-      transactionId,
-    });
-    return await getUserEntitlementSnapshot(userId);
-  }
-  console.log("[IAP][Step 2/8] No existing verified transaction found", { transactionId });
+  let appleTransactionId: string;
 
-  // 3) Call Apple Server API
-  console.log("[IAP][Step 3/8] Fetch transaction from Apple Server API", { transactionId });
-  const txRes = await getTransactionInfo(transactionId);
-  const signedTx = txRes?.signedTransactionInfo;
-  if (!signedTx) {
-    console.log("[IAP][Step 3/8] Missing signedTransactionInfo in Apple response", { transactionId });
-    const e: any = new Error("Apple response missing signedTransactionInfo");
+  // 3) Call Apple Transaction History API (v2) and select the transaction matching this productId
+  console.log("[IAP][Step 3/8] Fetch transaction history from Apple Server API", { transactionId });
+  const history = await getTransactionHistory(transactionId);
+
+  const signedList: string[] = Array.isArray(history?.signedTransactions)
+    ? history.signedTransactions
+    : [];
+
+  if (!signedList.length) {
+    console.log("[IAP][Step 3/8] Apple history returned no signedTransactions", { transactionId });
+    const e: any = new Error("Apple history returned no signedTransactions");
     e.statusCode = 502;
     throw e;
   }
-  console.log("[IAP][Step 3/8] Apple response includes signedTransactionInfo", { transactionId });
 
-  // 4) Decode payload (PoC). Later: verify signature.
-  console.log("[IAP][Step 4/8] Decode JWS payload", { transactionId });
-  const tx = decodeJwsPayload(signedTx);
-  console.log("[IAP][Step 4/8] Decoded payload", {
-    txProductId: tx.productId,
-    txBundleId: tx.bundleId,
-    originalTransactionId: tx.originalTransactionId,
-  });
-
-  // 5) Validate payload matches request
-  console.log("[IAP][Step 5/8] Validate payload fields", {
+  console.log("[IAP][Step 4/8] Decode signedTransactions and match by productId", {
     requestedProductId: productId,
-    txProductId: tx.productId,
-    requestedBundleId: appleConfig.bundleId,
-    txBundleId: tx.bundleId,
+    count: signedList.length,
   });
-  if (tx.productId !== productId) {
-    console.log("[IAP][Step 5/8] productId mismatch", { requestedProductId: productId, txProductId: tx.productId });
-    const e: any = new Error("productId mismatch");
-    e.statusCode = 400;
+
+  let matched: any = null;
+  for (const signed of signedList) {
+    try {
+      const payload = decodeJwsPayload(signed);
+      if (payload?.productId === productId) {
+        matched = payload;
+        break;
+      }
+    } catch (_) {
+      // ignore decode errors for individual entries
+    }
+  }
+
+  if (!matched) {
+    console.log("[IAP][Step 4/8] No matching transaction found in history for requested productId", {
+      requestedProductId: productId,
+      transactionId,
+    });
+    // Sandbox can be eventually consistent; treat as pending rather than hard error
+    const e: any = new Error("No matching transaction found for requested productId");
+    e.statusCode = 409;
     throw e;
   }
-  if (tx.bundleId !== appleConfig.bundleId) {
-    console.log("[IAP][Step 5/8] bundleId mismatch", { requestedBundleId: appleConfig.bundleId, txBundleId: tx.bundleId });
+
+  console.log("[IAP][Step 4/8] Matched Apple payload", {
+    txProductId: matched.productId,
+    txBundleId: matched.bundleId,
+    appleTransactionId: matched.transactionId,
+    originalTransactionId: matched.originalTransactionId,
+    type: matched.type,
+  });
+
+  // 5) Validate bundle id
+  console.log("[IAP][Step 5/8] Validate payload bundleId", {
+    requestedBundleId: appleConfig.bundleId,
+    txBundleId: matched.bundleId,
+  });
+  if (matched.bundleId !== appleConfig.bundleId) {
+    console.log("[IAP][Step 5/8] bundleId mismatch", {
+      requestedBundleId: appleConfig.bundleId,
+      txBundleId: matched.bundleId,
+    });
     const e: any = new Error("bundleId mismatch");
     e.statusCode = 400;
     throw e;
   }
-  console.log("[IAP][Step 5/8] Payload validation passed", { transactionId });
+  console.log("[IAP][Step 5/8] Payload validation passed", {
+    transactionId,
+    appleTransactionId: matched.transactionId,
+  });
 
-  const originalTransactionId = tx.originalTransactionId;
-  const purchaseDate = tx.purchaseDate ? new Date(tx.purchaseDate) : undefined;
-  const expiresAt = tx.expiresDate ? new Date(tx.expiresDate) : undefined;
+  appleTransactionId = matched.transactionId as string;
+
+  // 2) Idempotency (by real Apple transactionId)
+  console.log("[IAP][Step 2/8] Check existing verified transaction", {
+    transactionId,
+    appleTransactionId,
+  });
+  const existing = await PurchaseTransaction.findOne({
+    platform: "ios",
+    transactionId: appleTransactionId,
+  }).lean();
+  if (existing?.status === "verified") {
+    console.log(
+      "[IAP][Step 2/8] Existing verified transaction found, returning entitlement snapshot",
+      { transactionId, appleTransactionId }
+    );
+    return await getUserEntitlementSnapshot(userId);
+  }
+  console.log("[IAP][Step 2/8] No existing verified transaction found", {
+    transactionId,
+    appleTransactionId,
+  });
+
+  const originalTransactionId = matched.originalTransactionId as string | undefined;
+  const purchaseDate = matched.purchaseDate ? new Date(matched.purchaseDate) : undefined;
+  const expiresAt = matched.expiresDate ? new Date(matched.expiresDate) : undefined;
 
   // 6) Idempotency for restored/same entitlement payloads.
   // Apple may resend an already granted subscription entitlement with a different transactionId.
@@ -113,24 +156,24 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
   console.log("[IAP][Step 6/8] No duplicate subscription entitlement detected", { transactionId });
 
   // 7) Ensure transaction insert (dedupe) before entitlement
-  console.log("[IAP][Step 7/8] Insert verified purchase transaction", { transactionId });
+  console.log("[IAP][Step 7/8] Insert verified purchase transaction", { transactionId, appleTransactionId });
   try {
     await PurchaseTransaction.create({
       userId,
       platform: "ios",
       productId,
       productType: plan.productType,
-      transactionId,
+      transactionId: appleTransactionId,
       originalTransactionId,
       purchaseDate,
       expiresDate: expiresAt,
       status: "verified",
-      raw: { environment: tx.environment },
+      raw: { environment: matched.environment },
     });
-    console.log("[IAP][Step 7/8] Transaction insert successful", { transactionId });
+    console.log("[IAP][Step 7/8] Transaction insert successful", { transactionId, appleTransactionId });
   } catch (e: any) {
     if (e?.code === 11000) {
-      console.log("[IAP][Step 7/8] Duplicate transaction insert detected, returning snapshot", { transactionId });
+      console.log("[IAP][Step 7/8] Duplicate transaction insert detected, returning snapshot", { transactionId, appleTransactionId });
       return await getUserEntitlementSnapshot(userId);
     }
     throw e;
@@ -182,6 +225,5 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
     userId,
     addQuota: plan.quota ?? 100,
     planKey: plan.key as PlanKey,
-    period: plan.period,
   });
 }

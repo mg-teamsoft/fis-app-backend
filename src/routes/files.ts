@@ -75,30 +75,39 @@ const router = Router();
 router.post("/init", async (req, res) => {
   try {
     const { userId, fullname } = await JwtUtil.extractUser(req);
+    if (!userId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
     const { contentType = "image/jpeg", filename, checksumCRC32, sha256 } = req.body || {};
 
     if (!sha256) {
       return res.status(400).json({ status: "error", message: "sha256 required" });
     }
 
-    const sha256Hex = normalizeSha256(sha256);
-    // 1) Check DB for existing asset with same sha256
-    const existing = await AssetModel.findOne({ sha256: sha256Hex }).lean();
+    let sha256Hex: string;
+    try {
+      sha256Hex = normalizeSha256(sha256);
+    } catch (err: any) {
+      return res.status(400).json({ status: "error", message: err?.message || "invalid sha256" });
+    }
+
+    // 1) Check DB for existing asset with same sha256 for this user
+    const existing = await AssetModel.findOne({ userId, sha256: sha256Hex }).lean();
     if (existing) {
       // Optionally verify it still exists in S3 (cheap HEAD)
       try {
         await headObject(existing.key);
+        return res.json({
+          status: "duplicate",
+          key: existing.key,
+          bucket: awsConfig.bucket,
+          message: "Duplicate content detected",
+          existingJobId: existing.lastJobId || null,
+        });
       } catch {
-        // If the object is gone, we can fall through to presign again
+        // Stale DB record: object is gone in S3. Delete stale mapping and continue.
+        await AssetModel.deleteOne({ _id: existing._id }).catch(() => { });
       }
-
-      return res.json({
-        status: "duplicate",
-        key: existing.key,
-        bucket: awsConfig.bucket,
-        message: "Duplicate content detected",
-        existingJobId: existing.lastJobId || null,
-      });
     }
 
     // 2) Build deterministic key using hash (dedupe at storage level too)
@@ -115,7 +124,7 @@ router.post("/init", async (req, res) => {
 
     // 4) Provisionally upsert the asset record (without size yet).
     await AssetModel.updateOne(
-      { sha256: sha256Hex },
+      { userId, sha256: sha256Hex },
       {
         $setOnInsert: {
           sha256: sha256Hex,
