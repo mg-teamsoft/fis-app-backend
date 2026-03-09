@@ -7,10 +7,25 @@ import { TokenSession, sha256 } from "../models/TokenSession";
 import crypto from 'crypto';
 import { sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail } from "../services/sendEmailService";
 import { purchasePlan } from "../controllers/planController";
+import config from "../configs/config";
 
 const router = Router();
 const ONE_DAY_SEC = 24 * 60 * 60;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
+const baseUrl = (config.baseUrl ?? '').replace(/\/$/, '');
+const port = (config.port ?? 3000);
+const apiBaseUrl = (() => {
+  if (!baseUrl) return '';
+  try {
+    const url = new URL(baseUrl);
+    if (!url.port && port) {
+      url.port = String(port);
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return `${baseUrl}:${port}`.replace(/\/$/, '');
+  }
+})();
 
 // --- helper to sign HS256 JWT ---
 async function signJwt(payload: Record<string, any>, expSeconds = ONE_DAY_SEC): Promise<{ token: string; exp: number }> {
@@ -81,7 +96,7 @@ router.post("/register", async (req: Request, res: Response) => {
       }
     }
 
-    const verificationLink = `${process.env.FRONTEND_URL}/api/auth/verify-email?token=${token}`;
+    const verificationLink = `${apiBaseUrl}/api/auth/verify-email?token=${token}`;
     await sendVerificationEmail(email!, verificationLink);
 
     return res.json({ status: "success", message: "User created", data: { userId: user.userId, userName: user.userName } });
@@ -140,7 +155,7 @@ router.post("/resend-email-verification", async (req: Request, res: Response) =>
     user.verificationTokenExpires = expires;
     await user.save();
 
-    const verificationLink = `${process.env.FRONTEND_URL}/api/auth/verify-email?token=${token}`;
+    const verificationLink = `${apiBaseUrl}/api/auth/verify-email?token=${token}`;
     await sendVerificationEmail(user.email, verificationLink);
 
     return res.json({ message: 'Doğrulama e-postası tekrar gönderildi.' });
