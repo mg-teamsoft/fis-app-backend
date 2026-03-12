@@ -79,20 +79,18 @@ router.post('/upload',
       try {
         const rawText = await runPythonOCR(file.path, config.defaultLang);
         // parse receipt lines offline
-        console.log('extractedData from offline OCR: ');
-        let extractedData = parseReceiptLines(rawText);
+        // console.log('extractedData from offline OCR: ');
+        // let extractedData = parseReceiptLines(rawText);
 
         // Step 5 – Anomaly check & Cloud Vision fallback
-        if (checkAnomaly(extractedData)) {
-          console.warn(`Anomaly detected in ${file.originalname}. Retrying with AWS Textract OCR...`);
-          const lines = await extractTextFromImage(file.path);
-          console.log(lines);
+        const lines = await extractTextFromImage(file.path);
+        console.log(lines);
 
-          // `lines` = your AWS Textract lines (string[])
-          extractedData = await extractReceiptWithOpenAI(lines);
-          console.log('extractedData from OpenAI Prompt: ');
-          console.log(extractedData);
-        }
+        // `lines` = your AWS Textract lines (string[])
+        let extractedData = await extractReceiptWithOpenAI(lines);
+        console.log('extractedData from OpenAI Prompt: ');
+        console.log(extractedData);
+
 
         // rows.push([date || '', '', description || '', '', '', '', '', '', '', total || '', '', '', '']);
         fs.unlink(file.path, () => { });
@@ -104,8 +102,6 @@ router.post('/upload',
         res.json({ response: null, message: err });
       }
     }
-
-
   });
 
 export default router;
