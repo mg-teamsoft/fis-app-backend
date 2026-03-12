@@ -75,8 +75,8 @@ function toRowArray(r: ReceiptData): (string | number)[] {
         r.receiptNumber ?? "",
         toNumber2(r.kdvAmount),
         toNumber2(r.totalAmount),
-        r.transactionType?.type ?? "",
         r.transactionType?.kdvRate ?? "",
+        r.transactionType?.type ?? "",
         r.paymentType ?? "",
     ];
 }
@@ -228,7 +228,7 @@ export async function writeReceiptToS3WithMonthlySheets(
         let ws = wb.getWorksheet(sheetName);
         if (!ws) {
             ws = wb.addWorksheet(sheetName);
-            setTitleAndPeriodIfNew(ws, fullname, at); // A1/A2
+            //setTitleAndPeriodIfNew(ws, fullname, at); // A1/A2
             setHeadersIfNew(ws);                      // row 3
         } else {
             // Make sure styles are present even on reopen
