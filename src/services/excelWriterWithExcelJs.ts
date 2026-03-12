@@ -186,8 +186,8 @@ function ensureColumnStyles(ws: ExcelJS.Worksheet) {
     ws.getColumn(3).width = 18;
     ws.getColumn(4).width = 15; ws.getColumn(4).numFmt = "#,##0.00"; // KDV
     ws.getColumn(5).width = 15; ws.getColumn(5).numFmt = "#,##0.00"; // Total
-    ws.getColumn(6).width = 18;
-    ws.getColumn(7).width = 12; ws.getColumn(7).numFmt = "0";       // KDV rate
+    ws.getColumn(6).width = 12; ws.getColumn(6).numFmt = "0";       // KDV rate
+    ws.getColumn(7).width = 18;
     ws.getColumn(8).width = 14;
     ws.getColumn(9).width = 50;
 }
