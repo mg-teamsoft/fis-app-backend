@@ -7,3 +7,7 @@ export function normalizeAmount(text: string): number | null {
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? null : parsed;
 }
+
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}

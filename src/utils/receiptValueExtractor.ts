@@ -1,4 +1,4 @@
-import { normalizeAmount } from "./amountNormalizer";
+import { normalizeAmount } from "../utils/normalizeUtil";
 import { fuzzySearchInLines } from "./fuzzySearch";
 
 /**

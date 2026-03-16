@@ -92,3 +92,52 @@ export function generatePasswordResetTemplate(resetUrl: string): string {
   </mjml>
   `;
 }
+
+export function generateContactInviteTemplate(params: {
+  inviterDisplayName: string;
+  actionLink: string;
+  actionLabel: string;
+  expiresAtText: string;
+  permissionsText: string;
+}): string {
+  const {
+    inviterDisplayName,
+    actionLink,
+    actionLabel,
+    expiresAtText,
+    permissionsText,
+  } = params;
+
+  return `
+  <mjml>
+    <mj-body background-color="#f0f0f0">
+      <mj-section>
+        <mj-column>
+          <mj-text font-size="20px" font-weight="bold" color="#333333">
+            Yönetici Erişim Daveti
+          </mj-text>
+          <mj-divider border-color="#cccccc" />
+          <mj-text font-size="16px" color="#555555">
+            ${inviterDisplayName} sizi fiş verilerine erişim için davet etti.
+          </mj-text>
+          <mj-text font-size="14px" color="#555555">
+            İzinler: ${permissionsText}
+          </mj-text>
+          <mj-text font-size="14px" color="#555555">
+            Sonlanma tarihi: ${expiresAtText}
+          </mj-text>
+          <mj-button background-color="#007BFF" color="white" href="${actionLink}">
+            ${actionLabel}
+          </mj-button>
+          <mj-text font-size="12px" color="#999999">
+            Eğer buton çalışmazsa, bu linki açın:
+          </mj-text>
+          <mj-text font-size="12px" color="#2563eb">
+            ${actionLink}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-body>
+  </mjml>
+  `;
+}

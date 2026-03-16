@@ -1,6 +1,11 @@
 import nodemailer from 'nodemailer';
 import mjml2html from 'mjml';
-import { generateMjmlTemplate, generateWelcomeMjmlTemplate, generatePasswordResetTemplate } from '../utils/mailTemplateUtil';
+import {
+  generateMjmlTemplate,
+  generateWelcomeMjmlTemplate,
+  generatePasswordResetTemplate,
+  generateContactInviteTemplate,
+} from '../utils/mailTemplateUtil';
 
 export async function sendVerificationEmail(toEmail: string, verificationUrl: string) {
   const { html } = mjml2html(generateMjmlTemplate(verificationUrl));
@@ -63,6 +68,56 @@ export async function sendPasswordResetEmail(toEmail: string, resetUrl: string) 
     from: '"My Fiş App" <no-reply@fis-app.com>',
     to: toEmail,
     subject: 'Şifre Sıfırlama Talebi',
+    html,
+  });
+}
+
+export async function sendContactInviteEmail(params: {
+  toEmail: string;
+  inviterDisplayName: string;
+  isRegistered: boolean;
+  acceptUrl: string;
+  registerThenAcceptUrl: string;
+  expiresAt: Date;
+  permissions: string[];
+}) {
+  const {
+    toEmail,
+    inviterDisplayName,
+    isRegistered,
+    acceptUrl,
+    registerThenAcceptUrl,
+    expiresAt,
+    permissions,
+  } = params;
+
+  const expiresAtText = expiresAt.toISOString();
+  const actionLink = isRegistered ? acceptUrl : registerThenAcceptUrl;
+  const actionLabel = isRegistered ? 'Invite in-app' : 'Register and accept invite';
+  const { html } = mjml2html(
+    generateContactInviteTemplate({
+      inviterDisplayName,
+      actionLink,
+      actionLabel,
+      expiresAtText,
+      permissionsText: permissions.join(', '),
+    })
+  );
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure: false,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  await transporter.sendMail({
+    from: '"My Fiş App" <no-reply@fis-app.com>',
+    to: toEmail,
+    subject: 'You have a supervisor invite',
     html,
   });
 }

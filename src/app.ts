@@ -16,11 +16,13 @@ import homeSummaryRoutes from "./routes/homeSummary";
 import userRoutes from "./routes/users";
 import userPlanRoutes from "./routes/userPlans";
 import purchaseRoutes from "./routes/purchasesRoutes";
+import contactRoutes from "./routes/contacts";
 
 import { requireAuth } from './middleware/authJwt';
 import morgan from "morgan";
 import { healthRouter } from './routes/health';
 import iapRoutes from './routes/iapRoutes';
+import supervisorRoutes from './routes/supervisorRoutes';
 
 const app = express();
 app.use(cors())
@@ -57,7 +59,8 @@ app.use("/users", requireAuth(), userRoutes);
 app.use("/user-plans", requireAuth(), userPlanRoutes);
 app.use("/iap", requireAuth(), iapRoutes);
 app.use("/purchases", requireAuth(), purchaseRoutes);
-
+app.use("/contacts", requireAuth(), contactRoutes);
+app.use("/supervisor", requireAuth(), supervisorRoutes);
 
 //  Setup Swagger API Docs
 setupSwagger(app);

@@ -1,6 +1,5 @@
 // src/services/jobProcessor.ts
 import config from '../configs/config';
-import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -10,6 +9,7 @@ import { checkAnomaly } from '../utils/checkAnomaly';
 import { extractTextFromImage } from './awsTextractService';
 import { extractReceiptWithOpenAI } from './openaiToReceiptDataService';
 import { JobModel } from '../models/JobModel';
+import { randomUuid } from '../utils/cryptoUtil';
 
 
 type BufferJobParams = {
@@ -20,7 +20,7 @@ type BufferJobParams = {
 };
 
 export async function startJobFromBuffer(params: BufferJobParams) {
-  const jobId = randomUUID();
+  const jobId = randomUuid();
 
   // You might want to persist a "job" doc in DB here with status = "queued"
   await JobModel.create({
@@ -35,7 +35,7 @@ export async function startJobFromBuffer(params: BufferJobParams) {
   process.nextTick(async () => {
     let tmpPath;
     try {
-      tmpPath = join(tmpdir(), `${randomUUID()}.jpg`);
+      tmpPath = join(tmpdir(), `${randomUuid()}.jpg`);
       await writeFile(tmpPath, params.buffer);
 
       // 1) OCR (Tesseract, Cloud Vision, or Textract)

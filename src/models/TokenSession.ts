@@ -1,5 +1,4 @@
 import { Schema, model, models, Document } from "mongoose";
-import crypto from "crypto";
 
 export interface TokenSessionDoc extends Document {
   tokenHash: string;         // SHA256 of raw token
@@ -31,8 +30,3 @@ const TokenSessionSchema = new Schema<TokenSessionDoc>(
 
 export const TokenSession =
   models.TokenSession || model<TokenSessionDoc>("TokenSession", TokenSessionSchema);
-
-// Helper to hash tokens so you don't store raw tokens
-export function sha256(input: string): string {
-  return crypto.createHash("sha256").update(input, "utf8").digest("hex");
-}

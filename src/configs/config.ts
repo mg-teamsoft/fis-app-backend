@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const config = {
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   baseUrl: process.env.BASE_URL || 'http://localhost',
   port: parseInt(process.env.PORT || '3000', 10),
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
