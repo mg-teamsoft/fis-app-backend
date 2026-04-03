@@ -203,6 +203,35 @@ export async function listPendingInvitesForSupervisor(supervisorUserId: string) 
   return invites;
 }
 
+export async function listInvitesCreatedByUser(inviterUserId: string) {
+  const now = new Date();
+
+  // Keep statuses consistent for inviter-side history views as well.
+  await ContactInviteModel.updateMany(
+    { inviterUserId, status: "PENDING", expiresAt: { $lte: now } },
+    { $set: { status: "EXPIRED" } }
+  );
+
+  const invites = await ContactInviteModel.find({ inviterUserId })
+    .select({
+      inviteId: 1,
+      inviterUserId: 1,
+      inviteeEmail: 1,
+      inviteeUserId: 1,
+      resendCount: 1,
+      status: 1,
+      permissions: 1,
+      expiresAt: 1,
+      respondedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return invites;
+}
+
 export async function rejectInviteById(args: {
   inviteId: string;
   supervisorUserId: string;

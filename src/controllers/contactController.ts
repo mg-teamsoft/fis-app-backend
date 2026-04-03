@@ -6,7 +6,7 @@ import { UserModel } from "../models/User";
 import { ContactPermissions } from "../types/contactPermissions";
 import { JwtUtil } from "../utils/jwtUtil";
 import { sendContactInviteEmail } from "../services/sendEmailService";
-import { acceptInviteById, listPendingInvitesForSupervisor, rejectInviteById, revokeContactLink } from "../services/contactService";
+import { acceptInviteById, listInvitesCreatedByUser, listPendingInvitesForSupervisor, rejectInviteById, revokeContactLink } from "../services/contactService";
 import { randomTokenHex, sha256 } from "../utils/cryptoUtil";
 import { normalizeEmail } from "../utils/normalizeUtil";
 import config from "../configs/config";
@@ -122,6 +122,7 @@ export async function createContactInvite(req: Request, res: Response) {
       inviterUserId: userId,
       inviteeEmail: normalizedInviteeEmail,
       inviteeUserId: inviteeUser?.userId ?? null,
+      resendCount: 0,
       status: "PENDING",
       tokenHash,
       permissions: requestedPermissions,
@@ -159,6 +160,7 @@ export async function createContactInvite(req: Request, res: Response) {
       inviteId: invite.inviteId,
       status: invite.status,
       inviteeEmail: invite.inviteeEmail,
+      resendCount: invite.resendCount,
       permissions: invite.permissions,
       expiresAt: invite.expiresAt,
       inviteeRegistered: Boolean(inviteeUser),
@@ -187,6 +189,144 @@ export async function getPendingInvites(req: Request, res: Response) {
       message: e?.message ?? "Failed to fetch pending invites",
     });
   }
+}
+
+// Customer lists all invites they created
+export async function listMyCreatedInvites(req: Request, res: Response) {
+  const { userId } = await JwtUtil.extractUser(req);
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const invites = await listInvitesCreatedByUser(userId);
+    return res.json({ status: "ok", invites });
+  } catch (e: any) {
+    return res.status(500).json({
+      status: "error",
+      message: e?.message ?? "Failed to list created invites",
+    });
+  }
+}
+
+// Customer resends a pending invite once
+export async function resendContactInvite(req: Request, res: Response) {
+  const { userId } = await JwtUtil.extractUser(req);
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const inviteId = req.params.id;
+  if (!inviteId) {
+    return res.status(400).json({ status: "error", message: "inviteId is required" });
+  }
+
+  const invite = await ContactInviteModel.findOne({ inviteId }).lean();
+  if (!invite) {
+    return res.status(404).json({ status: "error", message: "Invite not found" });
+  }
+
+  if (invite.inviterUserId !== userId) {
+    return res.status(403).json({ status: "error", message: "Forbidden" });
+  }
+
+  if (invite.status !== "EXPIRED") {
+    return res.status(409).json({ status: "error", message: "Only expired invites can be resent" });
+  }
+
+  if ((invite.resendCount ?? 0) >= 1) {
+    return res.status(409).json({ status: "error", message: "Invite can only be resent once" });
+  }
+
+  const inviter = await UserModel.findOne({ userId }).select("userName").lean();
+  if (!inviter) {
+    return res.status(404).json({ status: "error", message: "Inviter user not found" });
+  }
+
+  const inviteeUser = await UserModel.findOne({ email: invite.inviteeEmail }).select("userId").lean();
+  const nextInviteeUserId = inviteeUser?.userId ?? null;
+  const rawToken = randomTokenHex();
+  const nextTokenHash = sha256(rawToken);
+  const nextExpiresAt = new Date(Date.now() + SEVEN_DAYS_MS);
+  const nextResendCount = (invite.resendCount ?? 0) + 1;
+  const links = buildInviteLinks(rawToken);
+
+  await ContactInviteModel.updateOne(
+    {
+      inviteId,
+      inviterUserId: userId,
+      status: "EXPIRED",
+      $or: [
+        { resendCount: { $lt: 1 } },
+        { resendCount: { $exists: false } },
+      ],
+    },
+    {
+      $set: {
+        status: "PENDING",
+        tokenHash: nextTokenHash,
+        expiresAt: nextExpiresAt,
+        inviteeUserId: nextInviteeUserId,
+        resendCount: nextResendCount,
+      },
+    }
+  );
+
+  try {
+    await sendContactInviteEmail({
+      toEmail: invite.inviteeEmail,
+      inviterDisplayName: inviter.userName ?? "A customer",
+      isRegistered: Boolean(inviteeUser),
+      acceptUrl: links.acceptUrl,
+      registerThenAcceptUrl: links.registerThenAcceptUrl,
+      expiresAt: nextExpiresAt,
+      permissions: invite.permissions,
+    });
+  } catch (emailError: any) {
+    await ContactInviteModel.updateOne(
+      { inviteId, inviterUserId: userId },
+      {
+        $set: {
+          tokenHash: invite.tokenHash,
+          expiresAt: invite.expiresAt,
+          inviteeUserId: invite.inviteeUserId ?? null,
+          resendCount: invite.resendCount ?? 0,
+        },
+      }
+    );
+
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to resend invite email.",
+      error: emailError?.message,
+    });
+  }
+
+  const updatedInvite = await ContactInviteModel.findOne({ inviteId })
+    .select({
+      inviteId: 1,
+      inviterUserId: 1,
+      inviteeEmail: 1,
+      inviteeUserId: 1,
+      resendCount: 1,
+      status: 1,
+      permissions: 1,
+      expiresAt: 1,
+      respondedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    .lean();
+
+  res.locals.auditPayload = {
+    inviteId,
+    inviteeEmail: invite.inviteeEmail,
+    resendCount: nextResendCount,
+    expiresAt: nextExpiresAt,
+  };
+  res.locals.auditMessage = "Contact invite resent";
+
+  return res.json({ status: "ok", invite: updatedInvite });
 }
 
 // Supervisor accepts invite
@@ -318,4 +458,3 @@ export async function listActiveCustomersForSupervisor(supervisorUserId: string)
     customer: userById.get(l.customerUserId) ?? null,
   }));
 }
-

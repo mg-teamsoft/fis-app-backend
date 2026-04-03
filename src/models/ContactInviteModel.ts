@@ -12,6 +12,7 @@ export interface ContactInviteDoc extends Document {
   inviterUserId: string;       // customer (User.userId)
   inviteeEmail: string;        // supervisor email (match by email)
   inviteeUserId?: string | null; // set on accept (User.userId)
+  resendCount: number;
   status: InviteStatus;
 
   // token is only stored as hash for security
@@ -31,6 +32,7 @@ const ContactInviteSchema = new Schema<ContactInviteDoc>(
     inviterUserId: { type: String, required: true, index: true },
     inviteeEmail: { type: String, required: true, index: true },
     inviteeUserId: { type: String, default: null, index: true },
+    resendCount: { type: Number, default: 0 },
 
     status: {
       type: String,

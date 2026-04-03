@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { acceptInvite, createContactInvite, getPendingInvites, listMyCustomers, listMySupervisors, rejectInvite, revokeLink } from "../controllers/contactController";
+import { acceptInvite, createContactInvite, getPendingInvites, listMyCreatedInvites, listMyCustomers, listMySupervisors, rejectInvite, resendContactInvite, revokeLink } from "../controllers/contactController";
 import { auditInterceptor } from "../middleware/auditInterceptor";
 
 const router = Router();
@@ -11,8 +11,10 @@ router.get("/invites/pending", getPendingInvites);
 router.post("/invites/:id/accept", acceptInvite);
 
 // customer actions
+router.get("/invites", listMyCreatedInvites);
 router.get("/supervisors", listMySupervisors);             // 3.5
 router.post("/invites", auditInterceptor("CONTACT_INVITE_CREATE"), createContactInvite);
+router.post("/invites/:id/resend", resendContactInvite);
 router.post("/links/:id/revoke", revokeLink);
 
 export default router;
