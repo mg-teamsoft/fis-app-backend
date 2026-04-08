@@ -9,12 +9,14 @@ const MAX_LIMIT = 50;
 
 type NotificationListItem = {
   notificationId: string;
-  userId: string;
+  userId?: string | null;
   title: string;
   subtitle: string;
   content?: string;
   time: string;
   isUnread?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 type NotificationUserStateListItem = {
@@ -30,6 +32,16 @@ function parsePositiveInteger(value: unknown, fallback: number) {
   return parsed;
 }
 
+function buildNotificationVisibilityQuery(userId: string) {
+  return {
+    $or: [
+      { userId },
+      { userId: { $exists: false } },
+      { userId: null },
+    ],
+  };
+}
+
 export async function listNotifications(req: Request, res: Response) {
   try {
     const { userId } = await JwtUtil.extractUser(req);
@@ -40,10 +52,11 @@ export async function listNotifications(req: Request, res: Response) {
     const page = parsePositiveInteger(req.query.page, DEFAULT_PAGE);
     const limit = Math.min(parsePositiveInteger(req.query.limit, DEFAULT_LIMIT), MAX_LIMIT);
     const skip = (page - 1) * limit;
+    const visibilityQuery = buildNotificationVisibilityQuery(userId);
 
     const [total, notifications] = await Promise.all([
-      NotificationModel.countDocuments({ userId }),
-      NotificationModel.find({ userId })
+      NotificationModel.countDocuments(visibilityQuery),
+      NotificationModel.find(visibilityQuery)
         .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
@@ -83,6 +96,8 @@ export async function listNotifications(req: Request, res: Response) {
         isUnread: readStateMap.has(notification.notificationId)
           ? readStateMap.get(notification.notificationId)
           : (notification.isUnread ?? true),
+        createdAt: notification.createdAt,
+        updatedAt: notification.updatedAt,
       })),
       pagination: {
         page,
@@ -126,7 +141,7 @@ export async function insertReadNotifications(req: Request, res: Response) {
     }
 
     const existingNotifications = await NotificationModel.find({
-      userId,
+      ...buildNotificationVisibilityQuery(userId),
       notificationId: { $in: normalizedNotificationIds },
     })
       .select("notificationId")

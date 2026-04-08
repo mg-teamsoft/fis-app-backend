@@ -2,7 +2,7 @@ import { Document, Schema, model, models } from "mongoose";
 
 export interface NotificationDoc extends Document {
   notificationId: string;
-  userId: string;
+  userId?: string | null;
   title: string;
   subtitle: string;
   content: string;
@@ -15,7 +15,7 @@ export interface NotificationDoc extends Document {
 const NotificationSchema = new Schema<NotificationDoc>(
   {
     notificationId: { type: String, required: true, unique: true, index: true },
-    userId: { type: String, required: true, index: true },
+    userId: { type: String, required: false, index: true, default: null },
     title: { type: String, required: true, trim: true },
     subtitle: { type: String, required: true, trim: true },
     content: { type: String, default: "" },
