@@ -30,6 +30,8 @@ export const AUDIT_ACTIONS = [
   "USER_PLAN_DETAILS",
   "USER_PLAN_UPDATE",
   "CONTACT_INVITE_CREATE",
+  "NOTIFICATION_LIST",
+  "NOTIFICATION_READ_INSERT",
 ] as const;
 
 export type AuditAction = typeof AUDIT_ACTIONS[number];

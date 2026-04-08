@@ -1,26 +1,28 @@
 import { Router } from "express";
 import { requireSupervisorAccess } from "../middleware/requireSupervisorAccess";
-import { supervisorListCustomerReceipts, supervisorGetReceiptDetail, supervisorDownloadExcel } from "../controllers/supervisorController";
+import { supervisorListCustomers, supervisorListCustomerReceipts, supervisorGetReceiptDetail, supervisorDownloadExcel } from "../controllers/supervisorController";
 
 const router = Router();
 
+router.get("/customers", supervisorListCustomers);
+
 // 4.1 list receipts
-router.get(
-  "/customers/:customerUserId/receipts",
+router.post(
+  "/customers/receipts",
   requireSupervisorAccess("customerUserId", "VIEW_RECEIPTS"),
   supervisorListCustomerReceipts
 );
 
 // 4.2 receipt detail (includes image url)
-router.get(
-  "/customers/:customerUserId/receipts/:receiptId",
+router.post(
+  "/customers/receipts/:receiptId",
   requireSupervisorAccess("customerUserId", "VIEW_RECEIPTS"),
   supervisorGetReceiptDetail
 );
 
 // 4.3 excel download (redirect to presigned URL)
-router.get(
-  "/customers/:customerUserId/excel",
+router.post(
+  "/customers/excel",
   requireSupervisorAccess("customerUserId", "DOWNLOAD_FILES"),
   supervisorDownloadExcel
 );

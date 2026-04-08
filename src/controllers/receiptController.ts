@@ -134,11 +134,12 @@ export async function listReceiptListItems(req: Request, res: Response) {
     try {
         const { userId: userId, fullname: fullname } = await JwtUtil.extractUser(req);
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-
+        
+        const queryUserId = req.accessScope?.customerUserId ?? userId;
         const { businessName, receiptNumber, transactionDate } = req.query;
 
         const query: any = {};
-        if (userId) query.userId = userId;
+        if (queryUserId) query.userId = queryUserId;
         if (businessName) query.businessName = { $regex: businessName as string, $options: 'i' };
         if (receiptNumber) query.receiptNumber = { $regex: receiptNumber as string, $options: 'i' };
 
@@ -188,8 +189,12 @@ export async function getReceiptDetail(req: Request, res: Response) {
         const { userId: userId, fullname: fullname } = await JwtUtil.extractUser(req);
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-        const receipt = await ReceiptModel.findOne({ _id: req.params.id, userId });
-        if (!receipt) return res.status(404).json({ message: 'Not found', id: req.params.id });
+        const queryUserId = req.accessScope?.customerUserId ?? userId;
+        const receiptId = req.params.id ?? req.params.receiptId;
+        if (!receiptId) return res.status(400).json({ message: 'Receipt id is required' });
+
+        const receipt = await ReceiptModel.findOne({ _id: receiptId, userId: queryUserId });
+        if (!receipt) return res.status(404).json({ message: 'Not found', id: receiptId });
 
         // Generate signed URL for the image
         let signedImageUrl = '';

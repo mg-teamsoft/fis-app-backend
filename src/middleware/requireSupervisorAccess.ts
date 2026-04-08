@@ -16,7 +16,7 @@ declare global {
 }
 
 export function requireSupervisorAccess(
-  customerUserIdParam: string, // e.g. "customerUserId" from req.params
+  customerUserIdField: string,
   permission: ContactPermission
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -25,14 +25,16 @@ export function requireSupervisorAccess(
       return res.status(401).json({ status: "error", message: "Unauthorized" });
     }
 
-    const customerUserId = (req.params as any)?.[customerUserIdParam]; 
+    const customerUserId =
+      (req.body as any)?.[customerUserIdField] ??
+      (req.params as any)?.[customerUserIdField];
     if (!customerUserId) {
       return res.status(400).json({ status: "error", message: "customerUserId is required" });
     }
 
     const link = await ContactLinkModel.findOne({
       customerUserId,
-      userId,
+      supervisorUserId: userId,
       isActive: true,
     }).lean();
 

@@ -405,7 +405,8 @@ export async function listMyCustomers(req: Request, res: Response) {
   }
 
   try {
-    const customers = await listActiveCustomersForSupervisor(userId);
+    const permission = typeof req.query.permission === "string" ? req.query.permission : undefined;
+    const customers = await listActiveCustomersForSupervisor(userId, permission);
     return res.json({ status: "ok", customers });
   } catch (e: any) {
     return res.status(500).json({ status: "error", message: e?.message ?? "Failed to list customers" });
@@ -436,8 +437,13 @@ export async function listActiveSupervisorsForCustomer(customerUserId: string) {
   }));
 }
 
-export async function listActiveCustomersForSupervisor(supervisorUserId: string) {
-  const links = await ContactLinkModel.find({ supervisorUserId, isActive: true })
+export async function listActiveCustomersForSupervisor(supervisorUserId: string, permission?: string | null) {
+  const query: any = { supervisorUserId, isActive: true };
+  if (permission) {
+    query.permissions = permission;
+  }
+
+  const links = await ContactLinkModel.find(query)
     .select({ linkId: 1, customerUserId: 1, permissions: 1, createdAt: 1 })
     .sort({ createdAt: -1 })
     .lean();

@@ -1,70 +1,47 @@
 import { Request, Response } from "express";
-import ReceiptModel from "../models/ReceiptModel";
+import { ExcelFileModel } from "../models/ExcelFileModel";
 import { createPresignedGetUrl } from "../services/s3Service"; // adjust if you already have a presign service
+import { JwtUtil } from "../utils/jwtUtil";
+import { listActiveCustomersForSupervisor } from "./contactController";
+import { getReceiptDetail, listReceiptListItems } from "./receiptController";
+import { listUserExcelFiles } from "../services/excelWriterService";
+
+export async function supervisorListCustomers(req: Request, res: Response) {
+  try {
+    const { userId } = await JwtUtil.extractUser(req);
+    if (!userId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    const permission = typeof req.query.permission === "string" ? req.query.permission : undefined;
+    const customers = await listActiveCustomersForSupervisor(userId, permission);
+
+    return res.json(
+      customers.map((customer: any) => ({
+        customerUserId: customer.customerUserId,
+        userName: customer.customer?.userName ?? null,
+        email: customer.customer?.email ?? null,
+      }))
+    );
+  } catch (error: any) {
+    return res.status(500).json({ status: "error", message: error?.message ?? "Failed to list customers" });
+  }
+}
 
 export async function supervisorListCustomerReceipts(req: Request, res: Response) {
-  const customerUserId = req.accessScope!.customerUserId;
-
-  // Optional pagination
-  const page = Math.max(parseInt((req.query.page as string) ?? "1", 10), 1);
-  const limit = Math.min(Math.max(parseInt((req.query.limit as string) ?? "10", 10), 1), 50);
-  const skip = (page - 1) * limit;
-
-  const [items, total] = await Promise.all([
-    ReceiptModel.find({ userId: customerUserId })
-      .select({ imageUrl: 1, receiptNumber: 1, totalAmount: 1, transactionDate: 1 })
-      .sort({ transactionDate: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    ReceiptModel.countDocuments({ userId: customerUserId }),
-  ]);
-
-  return res.json({
-    status: "ok",
-    page,
-    limit,
-    total,
-    items,
-  });
+  return listReceiptListItems(req, res);
 }
 
 export async function supervisorGetReceiptDetail(req: Request, res: Response) {
-  const customerUserId = req.accessScope!.customerUserId;
-  const receiptId = req.params.receiptId;
-
-  const receipt = await ReceiptModel.findOne({ _id: receiptId, userId: customerUserId }).lean();
-  if (!receipt) {
-    return res.status(404).json({ status: "error", message: "Receipt not found" });
-  }
-
-  // If you store sourceKey, generate a new signed URL for detail screen:
-  // receipt.sourceKey example: "receipts/images/<userId>/<file>.jpg"
-  let freshImageUrl = receipt.imageUrl;
-  if ((receipt as any).sourceKey) {
-    freshImageUrl = await createPresignedGetUrl((receipt as any).sourceKey, 900); // 15 min
-  }
-
-  return res.json({
-    status: "ok",
-    receipt: {
-      ...receipt,
-      imageUrl: freshImageUrl,
-    },
-  });
+  return getReceiptDetail(req, res);
 }
 
 export async function supervisorDownloadExcel(req: Request, res: Response) {
-  const customerUserId = req.accessScope!.customerUserId;
-  const fileKey = req.params.fileKey; 
-  // fileKey should be URL-encoded; if it contains slashes, you may prefer query param instead.
-
-  // ✅ Safety check: restrict to this customer's prefix
-  const prefix = `receipts/excel/${customerUserId}/`;
-  if (!fileKey.startsWith(prefix)) {
-    return res.status(403).json({ status: "error", message: "Forbidden: invalid file key" });
+  try {
+    const customerUserId = req.accessScope!.customerUserId;
+    const files = await listUserExcelFiles(customerUserId);
+    return res.json({ status: "success", files });
+  } catch (error: any) {
+    return res.status(500).json({ status: "error", message: error?.message ?? "Failed to download excel" });
   }
-
-  const url = await createPresignedGetUrl(fileKey, 900);
-  return res.redirect(url);
 }
