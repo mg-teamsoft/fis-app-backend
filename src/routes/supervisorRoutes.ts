@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireSupervisorAccess } from "../middleware/requireSupervisorAccess";
-import { supervisorListCustomers, supervisorListCustomerReceipts, supervisorGetReceiptDetail, supervisorDownloadExcel } from "../controllers/supervisorController";
+import { supervisorListCustomers, supervisorListCustomerReceipts, supervisorGetReceiptDetail, supervisorListExcelFiles, supervisorDownloadExcel } from "../controllers/supervisorController";
 
 const router = Router();
 
@@ -20,9 +20,16 @@ router.post(
   supervisorGetReceiptDetail
 );
 
-// 4.3 excel download (redirect to presigned URL)
+// 4.3 excel download (get excel file list, then frontend will call presigned URL API for the selected file)
 router.post(
-  "/customers/excel",
+  "/customers/excel/files",
+  requireSupervisorAccess("customerUserId", "DOWNLOAD_FILES"),
+  supervisorListExcelFiles
+);
+
+// 4.4 excel download (get presigned URL for the selected file)
+router.post(
+  "/customers/excel/files/:fileId/presign",
   requireSupervisorAccess("customerUserId", "DOWNLOAD_FILES"),
   supervisorDownloadExcel
 );

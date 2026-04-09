@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
-import { ExcelFileModel } from "../models/ExcelFileModel";
-import { createPresignedGetUrl } from "../services/s3Service"; // adjust if you already have a presign service
 import { JwtUtil } from "../utils/jwtUtil";
 import { listActiveCustomersForSupervisor } from "./contactController";
 import { getReceiptDetail, listReceiptListItems } from "./receiptController";
-import { listUserExcelFiles } from "../services/excelWriterService";
+import { listUserExcelFiles, presignExcelGetUrl } from "../services/excelWriterService";
 
 export async function supervisorListCustomers(req: Request, res: Response) {
   try {
@@ -36,12 +34,28 @@ export async function supervisorGetReceiptDetail(req: Request, res: Response) {
   return getReceiptDetail(req, res);
 }
 
-export async function supervisorDownloadExcel(req: Request, res: Response) {
+export async function supervisorListExcelFiles(req: Request, res: Response) {
   try {
     const customerUserId = req.accessScope!.customerUserId;
     const files = await listUserExcelFiles(customerUserId);
     return res.json({ status: "success", files });
   } catch (error: any) {
-    return res.status(500).json({ status: "error", message: error?.message ?? "Failed to download excel" });
+    return res.status(500).json({ status: "error", message: error?.message ?? "Failed to list excel files" });
+  }
+}
+
+export async function supervisorDownloadExcel(req: Request, res: Response) {
+  try {
+    const customerUserId = req.accessScope!.customerUserId;
+    const fileId = req.params.fileId;
+    const result = await presignExcelGetUrl(customerUserId, fileId, 900);
+
+    return res.json({ status: "success", ...result });
+  } catch (error: any) {
+    if (error?.code === "NOT_FOUND") {
+      return res.status(404).json({ status: "error", message: "file not found" });
+    }
+
+    return res.status(500).json({ status: "error", message: error?.message ?? "presign failed" });
   }
 }
