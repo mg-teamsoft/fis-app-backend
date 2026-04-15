@@ -101,7 +101,7 @@ router.post("/init", async (req, res) => {
           status: "duplicate",
           key: existing.key,
           bucket: awsConfig.bucket,
-          message: "Duplicate content detected",
+          message: "Mükerrer resim işlenemez. Aynı içerikte bir resim zaten yüklü.",
           existingJobId: existing.lastJobId || null,
         });
       } catch {

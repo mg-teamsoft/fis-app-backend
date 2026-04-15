@@ -43,7 +43,7 @@ export async function createPlan(req: Request, res: Response) {
 
 export async function listPlans(req: Request, res: Response) {
   try {
-    const filter: { isActive: boolean; key: PlanKey } = { isActive: true, key: PlanKey.FREE };
+    const filter: { isActive: boolean } = { isActive: true };
     const { isActive } = req.query;
 
     if (typeof isActive !== 'undefined') {
