@@ -9,6 +9,7 @@ import { purchasePlan } from "../controllers/planController";
 import config from "../configs/config";
 import { randomTokenHex, sha256 } from "../utils/cryptoUtil";
 import { normalizeEmail } from "../utils/normalizeUtil";
+import { PlanKey } from "../models/PlanModel";
 
 const router = Router();
 const ONE_DAY_SEC = 24 * 60 * 60;
@@ -63,6 +64,13 @@ router.post("/register", async (req: Request, res: Response) => {
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         error: 'Password must be at least 8 characters, contain at least (1 uppercase & 1 lowercase & 1 number & 1 special) char.'
+      });
+    }
+
+    if (planKey && planKey !== PlanKey.FREE) {
+      return res.status(400).json({
+        status: "error",
+        message: "Only the FREE plan can be assigned during registration.",
       });
     }
 

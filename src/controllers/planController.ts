@@ -43,7 +43,18 @@ export async function createPlan(req: Request, res: Response) {
 
 export async function listPlans(req: Request, res: Response) {
   try {
-    const plans = await Plan.find().sort({ name: 1 });
+    const filter: { isActive: boolean; key: PlanKey } = { isActive: true, key: PlanKey.FREE };
+    const { isActive } = req.query;
+
+    if (typeof isActive !== 'undefined') {
+      if (isActive !== 'true' && isActive !== 'false') {
+        return res.status(400).json({ message: 'isActive query must be true or false.' });
+      }
+
+      filter.isActive = isActive === 'true';
+    }
+
+    const plans = await Plan.find(filter).sort({ name: 1 });
     return res.json(plans);
   } catch {
     return res.status(500).json({ message: 'Failed to list plans.' });

@@ -168,11 +168,12 @@ export async function listReceiptListItems(req: Request, res: Response) {
         const receipts = await ReceiptModel
             .find(query)
             .sort({ transactionDate: -1 })
-            .select('businessName receiptNumber totalAmount transactionDate');
+            .select('businessName businessTaxNo receiptNumber totalAmount transactionDate');
 
         const response: ReceiptDataListItem[] = receipts.map((receipt) => ({
             id: receipt.id.toString(),
             businessName: receipt.businessName,
+            businessTaxNo: receipt.businessTaxNo ?? null,
             transactionDate: receipt.transactionDate ? receipt.transactionDate.toISOString() : null,
             receiptNumber: receipt.receiptNumber,
             totalAmount: typeof receipt.totalAmount === 'number' ? receipt.totalAmount : null,
@@ -238,6 +239,7 @@ export async function exportReceiptsToExcel(req: Request, res: Response) {
 
         const sheetData = receipts.map((r) => ({
             'Şirket Adı': r.businessName,
+            'Vergi No': r.businessTaxNo ?? '',
             'İşlem Tarihi': r.transactionDate.toISOString().split('T')[0],
             'Fiş No': r.receiptNumber,
             'KDV Tutarı': r.vatAmount,

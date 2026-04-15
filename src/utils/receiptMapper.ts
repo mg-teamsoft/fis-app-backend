@@ -9,6 +9,7 @@ export function mapReceiptDataToReceiptModel(
   return {
     userId,
     businessName: data.businessName ?? "Bilinmeyen Şirket",
+    businessTaxNo: data.businessTaxNo ?? undefined,
     receiptNumber: data.receiptNumber ?? "Bilinmiyor",
     totalAmount: data.totalAmount ?? 0,
     vatAmount: data.kdvAmount ?? 0,

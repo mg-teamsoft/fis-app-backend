@@ -14,12 +14,13 @@ function ensureOutputDir() {
 function receiptToRow(receipt: ReceiptData) {
   return [
     receipt.businessName ?? '',
+    receipt.businessTaxNo ?? '',
     receipt.transactionDate ?? '',
     receipt.receiptNumber ?? '',
     receipt.kdvAmount ?? '',
     receipt.totalAmount ?? '',
-    receipt.transactionType ? `${receipt.transactionType.type}` : '',
     receipt.transactionType ? `${receipt.transactionType.kdvRate}` : '',
+    receipt.transactionType ? `${receipt.transactionType.type}` : '',
     receipt.paymentType ?? ''
   ];
 }
@@ -40,6 +41,20 @@ export async function writeReceiptToExcel(receipt: ReceiptData): Promise<{ fileP
       workbook = XLSX.readFile(absolutePath);
       worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+      if (data[0]?.[1] !== 'Vergi No') {
+        data.forEach((row) => row.splice(1, 0, ''));
+        data[0] = [
+          'Şirket Adı',
+          'Vergi No',
+          'İşlem Tarihi',
+          'Fiş No',
+          'KDV Tutarı',
+          'Toplam Tutar',
+          'KDV Oranı (%)',
+          'İşlem Tipi',
+          'Ödeme Tipi'
+        ];
+      }
       data.push(receiptToRow(receipt));
       const updatedSheet = XLSX.utils.aoa_to_sheet(data);
       workbook.Sheets[workbook.SheetNames[0]] = updatedSheet;
@@ -47,6 +62,7 @@ export async function writeReceiptToExcel(receipt: ReceiptData): Promise<{ fileP
       // Create new workbook
       const headers = [
         'Şirket Adı',
+        'Vergi No',
         'İşlem Tarihi',
         'Fiş No',
         'KDV Tutarı',

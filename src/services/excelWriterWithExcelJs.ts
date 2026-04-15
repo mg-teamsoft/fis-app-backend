@@ -27,6 +27,7 @@ function filePathFor(fullName: string, userId: string): string {
 
 const HEADERS = [
     "Şirket Adı",
+    "Vergi No",
     "İşlem Tarihi",
     "Fiş No",
     "KDV Tutarı",
@@ -71,6 +72,7 @@ function toNumber2(val: string | number | null | undefined): number | '' {
 function toRowArray(r: ReceiptData): (string | number)[] {
     return [
         r.businessName ?? "",
+        r.businessTaxNo ?? "",
         r.transactionDate ?? "",
         r.receiptNumber ?? "",
         toNumber2(r.kdvAmount),
@@ -101,16 +103,14 @@ function autoFitColumns(ws: ExcelJS.Worksheet, min = 10, max = 60) {
 function formatLastRow(ws: ExcelJS.Worksheet) {
     const last = ws.lastRow;
     if (!last) return;
-    // Wrap products column (I)
-    ws.getCell(`I${last.number}`).alignment = { wrapText: true, vertical: "top" };
     // Right align and format numeric columns
-    const d = ws.getCell(`D${last.number}`); // KDV
-    const e = ws.getCell(`E${last.number}`); // Total
+    const e = ws.getCell(`E${last.number}`); // KDV
+    const f = ws.getCell(`F${last.number}`); // Total
     const g = ws.getCell(`G${last.number}`); // KDV Rate
-    d.numFmt = "#.##0,00";
     e.numFmt = "#.##0,00";
+    f.numFmt = "#.##0,00";
     g.numFmt = "0";
-    [d, e, g].forEach((c) => (c.alignment = { horizontal: "right" }));
+    [e, f, g].forEach((c) => (c.alignment = { horizontal: "right" }));
 }
 
 function enrichReceiptData(receipt: ReceiptData): void {
@@ -154,8 +154,12 @@ function enrichReceiptData(receipt: ReceiptData): void {
 }
 
 function setHeadersIfNew(ws: ExcelJS.Worksheet) {
-    if (ws.rowCount >= 3) return; // already has title/period/headers
     const headerRowIndex = 3;
+    const existingSecondHeader = ws.getCell(headerRowIndex, 2).value;
+    if (ws.rowCount >= headerRowIndex && existingSecondHeader !== HEADERS[1]) {
+        ws.spliceColumns(2, 0, []);
+    }
+
     ws.getRow(headerRowIndex).values = [...HEADERS];
     ws.getRow(headerRowIndex).font = { bold: true };
     ws.views = [{ state: "frozen", ySplit: headerRowIndex }]; // freeze above data
@@ -182,14 +186,14 @@ function headerTexts(fullname: string, d = new Date()) {
 function ensureColumnStyles(ws: ExcelJS.Worksheet) {
     // set widths & numeric formats (US-style codes; Excel shows locale)
     ws.getColumn(1).width = 30;
-    ws.getColumn(2).width = 20;
-    ws.getColumn(3).width = 18;
-    ws.getColumn(4).width = 15; ws.getColumn(4).numFmt = "#,##0.00"; // KDV
-    ws.getColumn(5).width = 15; ws.getColumn(5).numFmt = "#,##0.00"; // Total
-    ws.getColumn(6).width = 12; ws.getColumn(6).numFmt = "0";       // KDV rate
-    ws.getColumn(7).width = 18;
-    ws.getColumn(8).width = 14;
-    ws.getColumn(9).width = 50;
+    ws.getColumn(2).width = 16;
+    ws.getColumn(3).width = 20;
+    ws.getColumn(4).width = 18;
+    ws.getColumn(5).width = 15; ws.getColumn(5).numFmt = "#,##0.00"; // KDV
+    ws.getColumn(6).width = 15; ws.getColumn(6).numFmt = "#,##0.00"; // Total
+    ws.getColumn(7).width = 12; ws.getColumn(7).numFmt = "0";       // KDV rate
+    ws.getColumn(8).width = 18;
+    ws.getColumn(9).width = 14;
 }
 
 export async function writeReceiptToS3WithMonthlySheets(
@@ -232,6 +236,7 @@ export async function writeReceiptToS3WithMonthlySheets(
             setHeadersIfNew(ws);                      // row 3
         } else {
             // Make sure styles are present even on reopen
+            setHeadersIfNew(ws);
             ensureColumnStyles(ws);
         }
 
