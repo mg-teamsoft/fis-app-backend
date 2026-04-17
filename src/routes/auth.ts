@@ -3,11 +3,13 @@ import { SignJWT } from "jose";
 import { v4 as uuidv4 } from "uuid";
 import { UserModel } from "../models/User";
 import { verifyPassword, hashPassword } from "../utils/password";
-import { TokenSession, sha256 } from "../models/TokenSession";
-import crypto from 'crypto';
+import { TokenSession } from "../models/TokenSession";
 import { sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail } from "../services/sendEmailService";
 import { purchasePlan } from "../controllers/planController";
 import config from "../configs/config";
+import { randomTokenHex, sha256 } from "../utils/cryptoUtil";
+import { normalizeEmail } from "../utils/normalizeUtil";
+import { PlanKey } from "../models/PlanModel";
 
 const router = Router();
 const ONE_DAY_SEC = 24 * 60 * 60;
@@ -65,6 +67,13 @@ router.post("/register", async (req: Request, res: Response) => {
       });
     }
 
+    if (planKey && planKey !== PlanKey.FREE) {
+      return res.status(400).json({
+        status: "error",
+        message: "Only the FREE plan can be assigned during registration.",
+      });
+    }
+
     // generate UUID if userId is null or empty
     if (!userId) {
       userId = uuidv4();
@@ -77,7 +86,7 @@ router.post("/register", async (req: Request, res: Response) => {
 
     const user = await UserModel.create({ userId, userName, email: email ?? null, passwordHash });
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = randomTokenHex();
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
 
     user.verificationToken = token;
@@ -149,7 +158,7 @@ router.post("/resend-email-verification", async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'E-posta zaten doğrulandı.' });
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = randomTokenHex();
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
     user.verificationToken = token;
     user.verificationTokenExpires = expires;
@@ -170,13 +179,14 @@ router.post("/request-password-reset", async (req: Request, res: Response) => {
     if (!email) {
       return res.status(400).json({ status: "error", message: "email is required" });
     }
-
-    const user = await UserModel.findOne({ email });
+    
+    let normalizedEmail = normalizeEmail(email);
+    const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) {
       return res.json({ status: "success", message: "If the account exists, a reset email has been sent." });
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = randomTokenHex();
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     user.passwordResetToken = token;

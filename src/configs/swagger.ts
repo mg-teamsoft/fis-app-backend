@@ -42,6 +42,7 @@ const options: swaggerJsdoc.Options = {
           type: 'object',
           properties: {
             businessName: { type: 'string', nullable: true },
+            businessTaxNo: { type: 'string', nullable: true },
             transactionDate: { type: 'string', nullable: true },
             receiptNumber: { type: 'string', nullable: true },
             products: {

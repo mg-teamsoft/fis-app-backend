@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { randomUUID } from "crypto";
 import { awsConfig } from "../configs/aws";
 import { createPresignedGetUrl, headObject, createPresignedPutUrlWithInput } from "../services/s3Service";
 import { JwtUtil } from "../utils/jwtUtil";
 import { normalizeSha256 } from "../utils/hashUtil";
 import { AssetModel } from "../models/AssetModel";
+import { randomUuid } from "../utils/cryptoUtil";
 
 // Shape the key: prefix/userId/yyyy/mm/uuid.ext
 function buildKey(userId: string, originalName?: string) {
@@ -12,7 +12,7 @@ function buildKey(userId: string, originalName?: string) {
   const yyyy = String(now.getFullYear());
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const ext = (originalName?.split(".").pop() || "jpg").toLowerCase();
-  return `${awsConfig.uploadPrefix}${userId}/${yyyy}/${mm}/${randomUUID()}.${ext}`;
+  return `${awsConfig.uploadPrefix}${userId}/${yyyy}/${mm}/${randomUuid()}.${ext}`;
 }
 
 const router = Router();
@@ -101,7 +101,7 @@ router.post("/init", async (req, res) => {
           status: "duplicate",
           key: existing.key,
           bucket: awsConfig.bucket,
-          message: "Duplicate content detected",
+          message: "Mükerrer resim işlenemez. Aynı içerikte bir resim zaten yüklü.",
           existingJobId: existing.lastJobId || null,
         });
       } catch {

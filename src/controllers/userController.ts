@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { UserModel } from '../models/User';
 import { hashPassword } from '../utils/password';
 import { JwtUtil } from '../utils/jwtUtil';
+import { normalizeEmail } from '../utils/normalizeUtil';
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
 const safeProjection =
@@ -20,6 +21,10 @@ export async function listUsers(_req: Request, res: Response) {
 export async function getUser(req: Request, res: Response) {
   try {
     const { userId: userId } = await JwtUtil.extractUser(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }  
+    
     const user = await UserModel.findOne({ userId: userId }).select(safeProjection).lean();
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
@@ -50,11 +55,12 @@ export async function createUser(req: Request, res: Response) {
     }
 
     const passwordHash = await hashPassword(password);
-
+    let normalizedEmail = normalizeEmail(email);
+    
     const user = await UserModel.create({
       userId,
       userName,
-      email,
+      normalizeEmail,
       passwordHash,
       emailVerified: typeof emailVerified === 'boolean' ? emailVerified : false,
     });
@@ -75,12 +81,15 @@ export async function createUser(req: Request, res: Response) {
 export async function updateUser(req: Request, res: Response) {
   try {
     const { userId: userId } = await JwtUtil.extractUser(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }  
     const { userName, email, password, emailVerified } = req.body || {};
 
     const updates: Record<string, unknown> = {};
 
     if (typeof userName !== 'undefined') updates.userName = userName;
-    if (typeof email !== 'undefined') updates.email = email;
+    if (typeof email !== 'undefined') updates.email = normalizeEmail(email);
     if (typeof emailVerified !== 'undefined') updates.emailVerified = emailVerified;
 
     if (typeof password !== 'undefined') {
@@ -123,6 +132,9 @@ export async function updateUser(req: Request, res: Response) {
 export async function deleteUser(req: Request, res: Response) {
   try {
     const { userId: userId } = await JwtUtil.extractUser(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }  
     const user = await UserModel.findOneAndDelete({ userId: userId });
 
     if (!user) {

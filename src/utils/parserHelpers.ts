@@ -1,12 +1,16 @@
 // "2.129,00" → 2129.00
-export function parseCurrency(val: string): number {
+export function parseCurrency(val: string | number): number {
+  if (typeof val === "number") return Number.isFinite(val) ? val : 0;
+
   const normalized = val.replace(/\./g, "").replace(",", ".");
   const num = parseFloat(normalized);
   return isNaN(num) ? 0 : num;
 }
 
-export function parsePercent(val?: string): number | null {
-  if (!val) return null;
+export function parsePercent(val?: string | number | null): number | null {
+  if (val === null || typeof val === "undefined" || val === "") return null;
+  if (typeof val === "number") return Number.isFinite(val) ? val : null;
+
   const m = val.match(/(\d{1,2})/);
   return m ? Number(m[1]) : null;
 }

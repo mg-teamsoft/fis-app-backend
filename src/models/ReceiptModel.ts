@@ -4,6 +4,7 @@ import { Schema, model, Document } from 'mongoose';
 export interface ReceiptModel extends Document {
   userId: string;                 // who owns these rules
   businessName: string;
+  businessTaxNo?: string;
   receiptNumber: string;
   totalAmount: number;
   vatAmount: number;
@@ -26,6 +27,12 @@ const ReceiptSchema = new Schema<ReceiptModel>(
     businessName: {
       type: String,
       required: true,
+      index: true,
+      trim: true,
+    },
+    businessTaxNo: {
+      type: String,
+      required: false,
       index: true,
       trim: true,
     },

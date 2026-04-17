@@ -608,6 +608,7 @@ export function extractAmountsFromLines(lines: string[]) {
 export function parseReceiptLines(rawText: string): ReceiptData {
   var extractedData: ReceiptData = {
     businessName: null,
+    businessTaxNo: null,
     transactionDate: null,
     receiptNumber: null,
     products: [],

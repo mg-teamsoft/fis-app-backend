@@ -11,6 +11,7 @@ export interface KDVInfo {
 
 export interface ReceiptData {
     businessName: string | null;
+    businessTaxNo: string | null;
     transactionDate: string | null;
     receiptNumber: string | null;
     products: Product[];
@@ -23,6 +24,7 @@ export interface ReceiptData {
 export interface ReceiptDataListItem {
     id: string | null;
     businessName: string | null;
+    businessTaxNo: string | null;
     transactionDate: string | null;
     receiptNumber: string | null;
     totalAmount: number | null;

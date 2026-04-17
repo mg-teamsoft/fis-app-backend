@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { jwtVerify, createRemoteJWKSet, importSPKI, JWTPayload } from "jose";
-import { TokenSession, sha256 } from "../models/TokenSession";
+import { TokenSession } from "../models/TokenSession";
+import { sha256 } from "../utils/cryptoUtil";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
