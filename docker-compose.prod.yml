@@ -11,7 +11,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD_URI}@mongo:27017/fis_app?authSource=admin
+      - MONGODB_URI=${MONGODB_URI}
     depends_on:
       - mongo
     restart: unless-stopped
