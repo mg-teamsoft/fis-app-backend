@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
+    "dev": "nodemon",
     "test": "jest",
     "build": "tsc && npm run copy-assets",
     "copy-assets": "cp -r src/scripts dist/",
