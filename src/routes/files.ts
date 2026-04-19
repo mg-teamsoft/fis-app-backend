@@ -5,6 +5,8 @@ import { JwtUtil } from "../utils/jwtUtil";
 import { normalizeSha256 } from "../utils/hashUtil";
 import { AssetModel } from "../models/AssetModel";
 import { randomUuid } from "../utils/cryptoUtil";
+import { checkImageQuota } from "../middleware/checkQuota";
+import { requireVerifiedEmail } from "../middleware/requireVerifiedEmail";
 
 // Shape the key: prefix/userId/yyyy/mm/uuid.ext
 function buildKey(userId: string, originalName?: string) {
@@ -72,7 +74,7 @@ const router = Router();
  *       500:
  *         description: Error while generating presign
  */
-router.post("/init", async (req, res) => {
+router.post("/init", requireVerifiedEmail, checkImageQuota, async (req, res) => {
   try {
     const { userId, fullname } = await JwtUtil.extractUser(req);
     if (!userId) {
