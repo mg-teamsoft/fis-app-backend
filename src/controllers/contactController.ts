@@ -397,6 +397,55 @@ export async function listMySupervisors(req: Request, res: Response) {
   }
 }
 
+// Customer deletes supervisor access by supervisorUserId or linkId
+export async function deleteMySupervisor(req: Request, res: Response) {
+  const { userId } = await JwtUtil.extractUser(req);
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const supervisorId = req.params.id;
+  if (!supervisorId) {
+    return res.status(400).json({ status: "error", message: "supervisor id is required" });
+  }
+
+  try {
+    const now = new Date();
+    const link = await ContactLinkModel.findOneAndUpdate(
+      {
+        customerUserId: userId,
+        isActive: true,
+        $or: [
+          { supervisorUserId: supervisorId },
+          { linkId: supervisorId },
+        ],
+      },
+      { $set: { isActive: false, revokedAt: now } },
+      { new: true }
+    ).lean();
+
+    if (!link) {
+      return res.status(404).json({
+        status: "error",
+        message: "Active supervisor link not found.",
+      });
+    }
+
+    res.locals.auditPayload = {
+      linkId: link.linkId,
+      supervisorUserId: link.supervisorUserId,
+    };
+    res.locals.auditMessage = "Supervisor access deleted";
+
+    return res.json({ status: "ok", link });
+  } catch (e: any) {
+    return res.status(500).json({
+      status: "error",
+      message: e?.message ?? "Failed to delete supervisor",
+    });
+  }
+}
+
 // Supervisor lists my customers (active links)
 export async function listMyCustomers(req: Request, res: Response) {
   const { userId } = await JwtUtil.extractUser(req);

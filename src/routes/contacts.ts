@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { acceptInvite, createContactInvite, getPendingInvites, listMyCreatedInvites, listMyCustomers, listMySupervisors, rejectInvite, resendContactInvite, revokeLink } from "../controllers/contactController";
+import { acceptInvite, createContactInvite, deleteMySupervisor, getPendingInvites, listMyCreatedInvites, listMyCustomers, listMySupervisors, rejectInvite, resendContactInvite, revokeLink } from "../controllers/contactController";
 import { auditInterceptor } from "../middleware/auditInterceptor";
 
 const router = Router();
@@ -13,6 +13,7 @@ router.post("/invites/:id/accept", acceptInvite);
 // customer actions
 router.get("/invites", listMyCreatedInvites);
 router.get("/supervisors", listMySupervisors);             // 3.5
+router.delete("/supervisors/:id", deleteMySupervisor);
 router.post("/invites", auditInterceptor("CONTACT_INVITE_CREATE"), createContactInvite);
 router.post("/invites/:id/resend", resendContactInvite);
 router.post("/links/:id/revoke", revokeLink);
