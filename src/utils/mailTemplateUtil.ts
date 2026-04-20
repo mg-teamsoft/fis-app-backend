@@ -1,13 +1,19 @@
+export function getAppDisplayName(): string {
+  return process.env.APP_DISPLAY_NAME || 'My Fiş App';
+}
+
 export function generateMjmlTemplate(verificationUrl: string): string {
+  const appDisplayName = getAppDisplayName();
+
   return `
   <mjml>
     <mj-body background-color="#f0f0f0">
       <mj-section>
         <mj-column>
-          <mj-text font-size="20px" font-weight="bold" color="#333333">My Fiş App - E-posta Doğrulama</mj-text>
+          <mj-text font-size="20px" font-weight="bold" color="#333333">${appDisplayName} - E-posta Doğrulama</mj-text>
           <mj-divider border-color="#cccccc" />
           <mj-text font-size="16px" color="#555555">
-            My Fiş App uygulaması hesabınızı doğrulamak için aşağıdaki bağlantıya 24 saat içinde tıklayın:
+            ${appDisplayName} uygulaması hesabınızı doğrulamak için aşağıdaki bağlantıya 24 saat içinde tıklayın:
           </mj-text>
           <mj-button background-color="#007BFF" color="white" href="${verificationUrl}">
             E-postayı Doğrula
@@ -23,6 +29,8 @@ export function generateMjmlTemplate(verificationUrl: string): string {
 }
 
 export function generateWelcomeMjmlTemplate(userName: string): string {
+  const appDisplayName = getAppDisplayName();
+
   return `
   <mjml>
     <mj-body background-color="#ffffff">
@@ -37,7 +45,7 @@ export function generateWelcomeMjmlTemplate(userName: string): string {
       <mj-section padding="20px">
         <mj-column>
           <mj-text font-size="16px" color="#333333">
-            My Fiş App'e katıldığınız için çok mutluyuz.
+            ${appDisplayName}'e katıldığınız için çok mutluyuz.
           </mj-text>
 
           <mj-text font-size="14px" color="#555555">
@@ -60,7 +68,7 @@ export function generateWelcomeMjmlTemplate(userName: string): string {
       <mj-section background-color="#f0f0f0" padding="10px">
         <mj-column>
           <mj-text align="center" font-size="12px" color="#999999">
-            My Fiş App © ${new Date().getFullYear()} | Tüm Hakları Saklıdır
+            ${appDisplayName} © ${new Date().getFullYear()} | Tüm Hakları Saklıdır
           </mj-text>
         </mj-column>
       </mj-section>
@@ -70,12 +78,14 @@ export function generateWelcomeMjmlTemplate(userName: string): string {
 }
 
 export function generatePasswordResetTemplate(resetUrl: string): string {
+  const appDisplayName = getAppDisplayName();
+
   return `
   <mjml>
     <mj-body background-color="#f0f0f0">
       <mj-section>
         <mj-column>
-          <mj-text font-size="20px" font-weight="bold" color="#333333">My Fiş App - Şifre Sıfırlama</mj-text>
+          <mj-text font-size="20px" font-weight="bold" color="#333333">${appDisplayName} - Şifre Sıfırlama</mj-text>
           <mj-divider border-color="#cccccc" />
           <mj-text font-size="16px" color="#555555">
             Şifrenizi sıfırlamak için aşağıdaki bağlantıya 1 saat içinde tıklayın:

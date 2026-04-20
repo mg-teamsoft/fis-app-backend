@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import mjml2html from 'mjml';
 import {
+  getAppDisplayName,
   generateMjmlTemplate,
   generateWelcomeMjmlTemplate,
   generatePasswordResetTemplate,
@@ -22,15 +23,20 @@ function createEmailTransporter() {
   });
 }
 
+function getEmailFrom() {
+  const fromEmail = process.env.SMTP_USER;
+  return `"${getAppDisplayName()}" <${fromEmail}>`;
+}
+
 export async function sendVerificationEmail(toEmail: string, verificationUrl: string) {
   const { html } = mjml2html(generateMjmlTemplate(verificationUrl));
 
   const transporter = createEmailTransporter();
 
   const info = await transporter.sendMail({
-    from: '"My Fiş App" <no-reply@myfis-app.com>',
+    from: getEmailFrom(),
     to: toEmail,
-    subject: 'Email Doğrulama – My Fiş App',
+    subject: `Email Doğrulama – ${getAppDisplayName()}`,
     html,
   });
 
@@ -43,7 +49,7 @@ export async function sendWelcomeEmail(toEmail: string, userName: string) {
   const transporter = createEmailTransporter();
 
   await transporter.sendMail({
-    from: '"My Fiş App" <no-reply@fis-app.com>',
+    from: getEmailFrom(),
     to: toEmail,
     subject: `Hoş Geldin, ${userName}!`,
     html,
@@ -56,7 +62,7 @@ export async function sendPasswordResetEmail(toEmail: string, resetUrl: string) 
   const transporter = createEmailTransporter();
 
   await transporter.sendMail({
-    from: '"My Fiş App" <no-reply@fis-app.com>',
+    from: getEmailFrom(),
     to: toEmail,
     subject: 'Şifre Sıfırlama Talebi',
     html,
@@ -99,7 +105,7 @@ export async function sendContactInviteEmail(params: {
 
 
   await transporter.sendMail({
-    from: '"My Fiş App" <no-reply@fis-app.com>',
+    from: getEmailFrom(),
     to: toEmail,
     subject: 'You have a supervisor invite',
     html,

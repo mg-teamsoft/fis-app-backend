@@ -3,6 +3,7 @@ import { ReceiptData } from "../types/receiptTypes";
 import { parseCurrency, parsePercent } from "../utils/parserHelpers";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 function toNullableString(value: unknown): string | null {
   if (value === null || typeof value === "undefined") return null;
@@ -34,7 +35,7 @@ ${text}
   console.log('OpenAI Prompt is ', prompt);
 
   const completion = await openai.responses.create({
-    model: "gpt-4.1-mini",
+    model: openAiModel,
     input: prompt
   });
 

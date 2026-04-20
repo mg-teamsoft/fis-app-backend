@@ -30,6 +30,7 @@ const ReceiptSchema = z.object({
 });
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const openAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 export async function extractReceiptWithOpenAIOld(lines: string[]): Promise<ParsedReceipt> {
   const text = lines.join("\n");
@@ -40,7 +41,7 @@ export async function extractReceiptWithOpenAIOld(lines: string[]): Promise<Pars
     'Rakam formatını KORU: "2.129,00" / "193,55". KDV oranını "%10" gibi döndür. Emin değilsen null kullan.';
 
   const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini", // or gpt-4o
+    model: openAiModel,
     temperature: 0,
     response_format: { type: "json_object" }, // ✅ JSON mode works on 5.12.2
     messages: [
