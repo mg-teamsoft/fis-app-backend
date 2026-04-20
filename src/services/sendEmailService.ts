@@ -7,10 +7,8 @@ import {
   generateContactInviteTemplate,
 } from '../utils/mailTemplateUtil';
 
-export async function sendVerificationEmail(toEmail: string, verificationUrl: string) {
-  const { html } = mjml2html(generateMjmlTemplate(verificationUrl));
-
-  const transporter = nodemailer.createTransport({
+function createEmailTransporter() {
+  return nodemailer.createTransport({
     host: process.env.SMTP_HOST,           // e.g., smtp.mailgun.org or smtp.gmail.com
     port: Number(process.env.SMTP_PORT),   // e.g., 587
     secure: false,
@@ -18,7 +16,16 @@ export async function sendVerificationEmail(toEmail: string, verificationUrl: st
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: {
+      rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false',
+    },
   });
+}
+
+export async function sendVerificationEmail(toEmail: string, verificationUrl: string) {
+  const { html } = mjml2html(generateMjmlTemplate(verificationUrl));
+
+  const transporter = createEmailTransporter();
 
   const info = await transporter.sendMail({
     from: '"My Fiş App" <no-reply@myfis-app.com>',
@@ -33,15 +40,7 @@ export async function sendVerificationEmail(toEmail: string, verificationUrl: st
 export async function sendWelcomeEmail(toEmail: string, userName: string) {
   const { html } = mjml2html(generateWelcomeMjmlTemplate(userName));
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const transporter = createEmailTransporter();
 
   await transporter.sendMail({
     from: '"My Fiş App" <no-reply@fis-app.com>',
@@ -54,15 +53,7 @@ export async function sendWelcomeEmail(toEmail: string, userName: string) {
 export async function sendPasswordResetEmail(toEmail: string, resetUrl: string) {
   const { html } = mjml2html(generatePasswordResetTemplate(resetUrl));
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const transporter = createEmailTransporter();
 
   await transporter.sendMail({
     from: '"My Fiş App" <no-reply@fis-app.com>',
@@ -104,15 +95,7 @@ export async function sendContactInviteEmail(params: {
     })
   );
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const transporter = createEmailTransporter();
 
 
   await transporter.sendMail({
