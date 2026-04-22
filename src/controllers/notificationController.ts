@@ -15,6 +15,8 @@ type NotificationListItem = {
   content?: string;
   time: string;
   isUnread?: boolean;
+  actionType?: string;
+  screen?: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -66,9 +68,9 @@ export async function listNotifications(req: Request, res: Response) {
     const notificationIds = typedNotifications.map((notification) => notification.notificationId);
     const readStates = notificationIds.length > 0
       ? await NotificationUserStateModel.find({
-          userId,
-          notificationId: { $in: notificationIds },
-        }).lean()
+        userId,
+        notificationId: { $in: notificationIds },
+      }).lean()
       : [];
     const readStateMap = new Map(
       (readStates as NotificationUserStateListItem[]).map(
@@ -96,6 +98,8 @@ export async function listNotifications(req: Request, res: Response) {
         isUnread: readStateMap.has(notification.notificationId)
           ? readStateMap.get(notification.notificationId)
           : (notification.isUnread ?? true),
+        actionType: notification.actionType,
+        screen: notification.screen,
         createdAt: notification.createdAt,
         updatedAt: notification.updatedAt,
       })),
@@ -114,6 +118,53 @@ export async function listNotifications(req: Request, res: Response) {
       error: error?.message,
     });
   }
+}
+
+export async function createNotification(data: {
+  userId?: string | null;
+  notificationId: string;
+  title: string;
+  subtitle: string;
+  content?: string;
+  time: string;
+  isUnread?: boolean;
+}) {
+  return await NotificationModel.create({
+    ...data,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+}
+
+export async function createNotificationState(data: {
+  userId: string;
+  notificationId: string;
+  isUnread: boolean;
+}) {
+  return await NotificationUserStateModel.create({
+    ...data,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+}
+
+export async function createPrivateNotification(data: {
+  userId: string;
+  notificationId: string;
+  title: string;
+  subtitle: string;
+  screen?: string;
+  actionType?: string,
+  content?: string;
+  time: string;
+}) {
+  const notification = await createNotification({ ...data, isUnread: true });
+  await createNotificationState({
+    userId: data.userId,
+    notificationId: data.notificationId,
+    isUnread: true,
+  });
+  return notification;
 }
 
 export async function insertReadNotifications(req: Request, res: Response) {

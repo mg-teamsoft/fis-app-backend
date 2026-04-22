@@ -10,6 +10,7 @@ import { acceptInviteById, listInvitesCreatedByUser, listPendingInvitesForSuperv
 import { randomTokenHex, sha256 } from "../utils/cryptoUtil";
 import { normalizeEmail } from "../utils/normalizeUtil";
 import config from "../configs/config";
+import { createPrivateNotification } from "./notificationController";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const allowedPermissions = new Set(Object.values(ContactPermissions));
@@ -140,6 +141,29 @@ export async function createContactInvite(req: Request, res: Response) {
         expiresAt,
         permissions: requestedPermissions,
       });
+
+      if (inviteeUser) {
+        try {
+          const notificationId = `notif_${uuidv4()}`;
+
+          await createPrivateNotification({
+            userId: inviteeUser.userId,
+            notificationId: notificationId,
+            title: "Yeni Bağlantı Daveti",
+            subtitle: `${inviter.userName} sizi bağlantı olarak eklemek istiyor.`,
+            actionType: "CONTACT_INVITE",
+            screen: "/connections",
+            content: "Daveti kabul ederek bağlantı kurabilir ve harcamalarınızı yönetebilirsiniz.",
+            time: "Şimdi",
+          });
+
+          console.log(`Notification sent to user: ${inviteeUser.userId}`);
+        } catch (notifError) {
+          console.error("Failed to create invite notification:", notifError);
+          // Not: Bildirim hatası ana işlemi (daveti) bozmamalı.
+        }
+      }
+
     } catch (emailError: any) {
       await ContactInviteModel.deleteOne({ _id: invite._id });
       return res.status(500).json({
@@ -341,9 +365,6 @@ export async function acceptInvite(req: Request, res: Response) {
   if (!inviteId) {
     return res.status(400).json({ status: "error", message: "inviteId is required" });
   }
-  if (!token || typeof token !== "string") {
-    return res.status(400).json({ status: "error", message: "token is required" });
-  }
 
   try {
     const link = await acceptInviteById({ inviteId, supervisorUserId: userId, token });
@@ -367,9 +388,6 @@ export async function rejectInvite(req: Request, res: Response) {
   if (!inviteId) return res.status(400).json({ status: "error", message: "inviteId is required" });
 
   const { token } = req.body ?? {};
-  if (!token || typeof token !== "string") {
-    return res.status(400).json({ status: "error", message: "token is required" });
-  }
 
   try {
     const invite = await rejectInviteById({ inviteId, supervisorUserId: userId, token });
@@ -388,7 +406,7 @@ export async function listMySupervisors(req: Request, res: Response) {
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  
+
   try {
     const supervisors = await listActiveSupervisorsForCustomer(userId);
     return res.json({ status: "ok", supervisors });
@@ -421,6 +439,18 @@ export async function deleteMySupervisor(req: Request, res: Response) {
         ],
       },
       { $set: { isActive: false, revokedAt: now } },
+      { new: true }
+    ).lean();
+
+    const inviteFilter = {
+      inviterUserId: userId,
+      inviteeUserId: supervisorId,
+      status: "ACCEPTED"
+    };
+
+    await ContactInviteModel.findOneAndUpdate(
+      inviteFilter,
+      { $set: { status: "REVOKED" } },
       { new: true }
     ).lean();
 
