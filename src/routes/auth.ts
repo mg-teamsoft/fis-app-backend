@@ -79,7 +79,7 @@ router.post("/register", async (req: Request, res: Response) => {
       userId = uuidv4();
     }
 
-    const exists = await UserModel.findOne({ $or: [{ userId }, { userName }] });
+    const exists = await UserModel.findOne({ $or: [{ userId }, { email }, { userName }] });
     if (exists) return res.status(409).json({ status: "error", message: "User already exists" });
 
     const passwordHash = await hashPassword(password);
@@ -179,7 +179,7 @@ router.post("/request-password-reset", async (req: Request, res: Response) => {
     if (!email) {
       return res.status(400).json({ status: "error", message: "email is required" });
     }
-    
+
     let normalizedEmail = normalizeEmail(email);
     const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) {
