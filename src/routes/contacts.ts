@@ -5,6 +5,8 @@ import { auditInterceptor } from "../middleware/auditInterceptor";
 const router = Router();
 
 // supervisor actions
+router.post("/invites/accept", acceptInvite);
+router.post("/invites/reject", rejectInvite);
 router.post("/invites/:id/reject", rejectInvite);          // 3.4
 router.get("/customers", listMyCustomers);                 // 3.6
 router.get("/invites/pending", getPendingInvites);

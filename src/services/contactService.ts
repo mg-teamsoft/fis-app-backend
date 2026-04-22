@@ -3,6 +3,20 @@ import { ContactLinkModel } from "../models/ContactLinkModel";
 import { UserModel } from "../models/User";
 import { randomUuid, sha256 } from "../utils/cryptoUtil";
 
+async function findInviteForAction(args: { inviteId?: string; token?: string }) {
+  const { inviteId, token } = args;
+
+  if (inviteId) {
+    return ContactInviteModel.findOne({ inviteId }).lean();
+  }
+
+  if (!token) {
+    return null;
+  }
+
+  return ContactInviteModel.findOne({ tokenHash: sha256(token) }).lean();
+}
+
 export async function revokeContactLink(args: {
   linkId: string;
   customerUserId: string;
@@ -45,9 +59,9 @@ export async function revokeContactLink(args: {
 }
 
 export async function acceptInviteById(args: {
-  inviteId: string;
+  inviteId?: string;
   supervisorUserId: string;
-  token: string;
+  token?: string;
 }) {
   const { inviteId, supervisorUserId, token } = args;
 
@@ -60,12 +74,13 @@ export async function acceptInviteById(args: {
   const now = new Date();
 
   // 2) Load invite
-  const invite = await ContactInviteModel.findOne({ inviteId }).lean();
+  const invite = await findInviteForAction({ inviteId, token });
   if (!invite) {
     const e: any = new Error("Invite not found");
     e.statusCode = 404;
     throw e;
   }
+  const resolvedInviteId = invite.inviteId;
 
   // 3) Validate status + expiry
   if (invite.status !== "PENDING") {
@@ -96,7 +111,7 @@ export async function acceptInviteById(args: {
   if (invite.expiresAt && invite.expiresAt <= now) {
     // mark expired
     await ContactInviteModel.updateOne(
-      { inviteId, status: "PENDING" },
+      { inviteId: resolvedInviteId, status: "PENDING" },
       { $set: { status: "EXPIRED" } }
     );
 
@@ -105,12 +120,14 @@ export async function acceptInviteById(args: {
     throw e;
   }
 
-  // 4) Verify token hash
-  const tokenHash = sha256(token);
-  if (tokenHash !== invite.tokenHash) {
-    const e: any = new Error("Invalid token");
-    e.statusCode = 401;
-    throw e;
+  // 4) If provided, verify token hash. Token-only flows depend on this check.
+  if (token) {
+    const tokenHash = sha256(token);
+    if (tokenHash !== invite.tokenHash) {
+      const e: any = new Error("Invalid token");
+      e.statusCode = 401;
+      throw e;
+    }
   }
 
   // 5) Ensure invite belongs to this supervisor (email or userId)
@@ -145,7 +162,7 @@ export async function acceptInviteById(args: {
 
   // 7) Mark invite accepted + set inviteeUserId
   await ContactInviteModel.updateOne(
-    { inviteId, status: "PENDING" },
+    { inviteId: resolvedInviteId, status: "PENDING" },
     {
       $set: {
         status: "ACCEPTED",
@@ -200,7 +217,28 @@ export async function listPendingInvitesForSupervisor(supervisorUserId: string) 
     .sort({ createdAt: -1 })
     .lean();
 
-  return invites;
+  const inviterUserIds = [...new Set(invites.map((invite: any) => invite.inviterUserId).filter(Boolean))];
+  const inviters = await UserModel.find({ userId: { $in: inviterUserIds } })
+    .select({ userId: 1, userName: 1, email: 1 })
+    .lean();
+
+  const inviterById = new Map(
+    inviters.map((inviter: any) => [
+      inviter.userId,
+      {
+        inviterUsername: inviter.userName ?? null,
+        inviterEmail: inviter.email ?? null,
+      },
+    ])
+  );
+
+  return invites.map((invite: any) => ({
+    ...invite,
+    ...(inviterById.get(invite.inviterUserId) ?? {
+      inviterUsername: null,
+      inviterEmail: null,
+    }),
+  }));
 }
 
 export async function listInvitesCreatedByUser(inviterUserId: string) {
@@ -233,9 +271,9 @@ export async function listInvitesCreatedByUser(inviterUserId: string) {
 }
 
 export async function rejectInviteById(args: {
-  inviteId: string;
+  inviteId?: string;
   supervisorUserId: string;
-  token: string;
+  token?: string;
 }) {
   const { inviteId, supervisorUserId, token } = args;
 
@@ -246,12 +284,13 @@ export async function rejectInviteById(args: {
   const supervisorEmail = (supervisor?.email ?? "").trim().toLowerCase();
   const now = new Date();
 
-  const invite = await ContactInviteModel.findOne({ inviteId }).lean();
+  const invite = await findInviteForAction({ inviteId, token });
   if (!invite) {
     const e: any = new Error("Invite not found");
     e.statusCode = 404;
     throw e;
   }
+  const resolvedInviteId = invite.inviteId;
 
   // idempotent: if already rejected/accepted/etc.
   if (invite.status !== "PENDING") {
@@ -260,7 +299,7 @@ export async function rejectInviteById(args: {
 
   if (invite.expiresAt && invite.expiresAt <= now) {
     await ContactInviteModel.updateOne(
-      { inviteId, status: "PENDING" },
+      { inviteId: resolvedInviteId, status: "PENDING" },
       { $set: { status: "EXPIRED" } }
     );
     const e: any = new Error("Invite expired");
@@ -268,12 +307,14 @@ export async function rejectInviteById(args: {
     throw e;
   }
 
-  // token check
-  const tokenHash = sha256(token);
-  if (tokenHash !== invite.tokenHash) {
-    const e: any = new Error("Invalid token");
-    e.statusCode = 401;
-    throw e;
+  // Token-only flows depend on this check.
+  if (token) {
+    const tokenHash = sha256(token);
+    if (tokenHash !== invite.tokenHash) {
+      const e: any = new Error("Invalid token");
+      e.statusCode = 401;
+      throw e;
+    }
   }
 
   // ownership check (email or userId)
@@ -287,9 +328,9 @@ export async function rejectInviteById(args: {
   }
 
   await ContactInviteModel.updateOne(
-    { inviteId, status: "PENDING" },
+    { inviteId: resolvedInviteId, status: "PENDING" },
     { $set: { status: "REJECTED", inviteeUserId: supervisorUserId, respondedAt: now } }
   );
 
-  return await ContactInviteModel.findOne({ inviteId }).lean();
+  return await ContactInviteModel.findOne({ inviteId: resolvedInviteId }).lean();
 }

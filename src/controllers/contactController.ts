@@ -14,6 +14,20 @@ import config from "../configs/config";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const allowedPermissions = new Set(Object.values(ContactPermissions));
 
+function readInviteToken(req: Request): string | undefined {
+  const bodyToken = req.body?.token ?? req.body?.inviteToken;
+  if (typeof bodyToken === "string" && bodyToken.trim()) {
+    return bodyToken.trim();
+  }
+
+  const queryToken = req.query?.token ?? req.query?.inviteToken;
+  if (typeof queryToken === "string" && queryToken.trim()) {
+    return queryToken.trim();
+  }
+
+  return undefined;
+}
+
 function buildInviteLinks(token: string) {
   const frontendBase = (config.frontendUrl ?? "").replace(/\/$/, "");
   const encodedToken = encodeURIComponent(token);
@@ -336,12 +350,9 @@ export async function acceptInvite(req: Request, res: Response) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   const inviteId = req.params.id;
-  const { token } = req.body ?? {};
+  const token = readInviteToken(req);
 
-  if (!inviteId) {
-    return res.status(400).json({ status: "error", message: "inviteId is required" });
-  }
-  if (!token || typeof token !== "string") {
+  if (!inviteId && (!token || typeof token !== "string")) {
     return res.status(400).json({ status: "error", message: "token is required" });
   }
 
@@ -364,10 +375,8 @@ export async function rejectInvite(req: Request, res: Response) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   const inviteId = req.params.id;
-  if (!inviteId) return res.status(400).json({ status: "error", message: "inviteId is required" });
-
-  const { token } = req.body ?? {};
-  if (!token || typeof token !== "string") {
+  const token = readInviteToken(req);
+  if (!inviteId && (!token || typeof token !== "string")) {
     return res.status(400).json({ status: "error", message: "token is required" });
   }
 
