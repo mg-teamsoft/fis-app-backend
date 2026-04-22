@@ -9,7 +9,6 @@ export async function revokeContactLink(args: {
 }) {
   const { linkId, customerUserId } = args;
   const now = new Date();
-
   // Ensure the link exists and belongs to this customer (owner check)
   const link = await ContactLinkModel.findOne({ linkId }).lean();
   if (!link) {
@@ -34,6 +33,29 @@ export async function revokeContactLink(args: {
     { $set: { isActive: false, revokedAt: now } },
     { new: true }
   ).lean();
+  // Önce filtreyi bir değişkene alalım ki loglarken tekrar yazmak zorunda kalmayalım
+  const inviteFilter = {
+    inviterUserId: updated.customerId,
+    inviteeUserId: updated.supervisorUserId,
+    status: "ACCEPTED"
+  };
+
+  const updatedInvite = await ContactInviteModel.findOneAndUpdate(
+    inviteFilter,
+    { $set: { status: "REVOKED" } },
+    { new: true } // Güncellenmiş dökümanı (REVOKED halini) geri döndürmek için
+  ).lean();
+
+  if (!updatedInvite) {
+    // Eğer sorgu hiçbir döküman yakalayamazsa burası çalışır
+    console.error("HATA: Güncellenecek davet bulunamadı!");
+  } else {
+    // Başarılı olursa güncellenen kaydı görebilirsin
+    console.log("Davet başarıyla REVOKED statüsüne çekildi:", {
+      inviteId: updatedInvite.inviteId,
+      newStatus: updatedInvite.status
+    });
+  }
 
   if (!updated) {
     const e: any = new Error("Failed to revoke link");
@@ -47,7 +69,7 @@ export async function revokeContactLink(args: {
 export async function acceptInviteById(args: {
   inviteId: string;
   supervisorUserId: string;
-  token: string;
+  token?: string;
 }) {
   const { inviteId, supervisorUserId, token } = args;
 
@@ -105,12 +127,14 @@ export async function acceptInviteById(args: {
     throw e;
   }
 
-  // 4) Verify token hash
-  const tokenHash = sha256(token);
-  if (tokenHash !== invite.tokenHash) {
-    const e: any = new Error("Invalid token");
-    e.statusCode = 401;
-    throw e;
+  // 4) Verify token hash if token is provided
+  if (token) {
+    const tokenHash = sha256(token);
+    if (tokenHash !== invite.tokenHash) {
+      const e: any = new Error("Invalid token");
+      e.statusCode = 401;
+      throw e;
+    }
   }
 
   // 5) Ensure invite belongs to this supervisor (email or userId)
@@ -200,7 +224,16 @@ export async function listPendingInvitesForSupervisor(supervisorUserId: string) 
     .sort({ createdAt: -1 })
     .lean();
 
-  return invites;
+  const inviterIds = invites.map((i: any) => i.inviterUserId);
+  const users = await UserModel.find({ userId: { $in: inviterIds } })
+    .select({ userId: 1, userName: 1, email: 1 })
+    .lean();
+  const userById = new Map(users.map((u: any) => [u.userId, u]));
+
+  return invites.map((i: any) => ({
+    ...i,
+    inviter: userById.get(i.inviterUserId) ?? null,
+  }));
 }
 
 export async function listInvitesCreatedByUser(inviterUserId: string) {
@@ -235,7 +268,7 @@ export async function listInvitesCreatedByUser(inviterUserId: string) {
 export async function rejectInviteById(args: {
   inviteId: string;
   supervisorUserId: string;
-  token: string;
+  token?: string;
 }) {
   const { inviteId, supervisorUserId, token } = args;
 
@@ -268,12 +301,14 @@ export async function rejectInviteById(args: {
     throw e;
   }
 
-  // token check
-  const tokenHash = sha256(token);
-  if (tokenHash !== invite.tokenHash) {
-    const e: any = new Error("Invalid token");
-    e.statusCode = 401;
-    throw e;
+  // token check if provided
+  if (token) {
+    const tokenHash = sha256(token);
+    if (tokenHash !== invite.tokenHash) {
+      const e: any = new Error("Invalid token");
+      e.statusCode = 401;
+      throw e;
+    }
   }
 
   // ownership check (email or userId)
