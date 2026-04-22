@@ -7,6 +7,8 @@ export interface NotificationDoc extends Document {
   subtitle: string;
   content: string;
   time: string;
+  actionType?: string | null;
+  screen?: string | null;
   isUnread: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -20,6 +22,8 @@ const NotificationSchema = new Schema<NotificationDoc>(
     subtitle: { type: String, required: true, trim: true },
     content: { type: String, default: "" },
     time: { type: String, required: true, trim: true },
+    actionType: { type: String, required: false, trim: true },
+    screen: { type: String, required: false, trim: true },
     isUnread: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }

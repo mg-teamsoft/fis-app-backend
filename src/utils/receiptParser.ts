@@ -24,7 +24,7 @@ const fuzzyTotalKeywords = [
  */
 export function parseBusinessName(lines: string[], config: ReceiptRegexConfig): string | null {
     let businessNameCandidate: string | null = null;
-    let potentialBusinessNameBlock: string[] = []; // <<<< BURAYA TAŞINDI VE İLK DEĞERİ VERİLDİ <<<<
+    let potentialBusinessNameBlock: string[] = [];
 
     let vknFoundIndex: number = -1;
     let addressFoundIndex: number = -1;

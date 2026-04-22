@@ -23,7 +23,6 @@ export async function revokeContactLink(args: {
 }) {
   const { linkId, customerUserId } = args;
   const now = new Date();
-
   // Ensure the link exists and belongs to this customer (owner check)
   const link = await ContactLinkModel.findOne({ linkId }).lean();
   if (!link) {
@@ -48,6 +47,29 @@ export async function revokeContactLink(args: {
     { $set: { isActive: false, revokedAt: now } },
     { new: true }
   ).lean();
+  // Önce filtreyi bir değişkene alalım ki loglarken tekrar yazmak zorunda kalmayalım
+  const inviteFilter = {
+    inviterUserId: updated.customerId,
+    inviteeUserId: updated.supervisorUserId,
+    status: "ACCEPTED"
+  };
+
+  const updatedInvite = await ContactInviteModel.findOneAndUpdate(
+    inviteFilter,
+    { $set: { status: "REVOKED" } },
+    { new: true } // Güncellenmiş dökümanı (REVOKED halini) geri döndürmek için
+  ).lean();
+
+  if (!updatedInvite) {
+    // Eğer sorgu hiçbir döküman yakalayamazsa burası çalışır
+    console.error("HATA: Güncellenecek davet bulunamadı!");
+  } else {
+    // Başarılı olursa güncellenen kaydı görebilirsin
+    console.log("Davet başarıyla REVOKED statüsüne çekildi:", {
+      inviteId: updatedInvite.inviteId,
+      newStatus: updatedInvite.status
+    });
+  }
 
   if (!updated) {
     const e: any = new Error("Failed to revoke link");
