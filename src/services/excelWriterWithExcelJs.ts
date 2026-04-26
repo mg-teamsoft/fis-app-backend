@@ -74,13 +74,6 @@ function toNumericOrNull(val: string | number | null | undefined): number | null
     return parsed === '' ? null : parsed;
 }
 
-export function shouldRejectExcelWriteForVat(receipt: ReceiptData): boolean {
-    const kdv = toNumericOrNull(receipt.kdvAmount as any);
-    const rate = toNumericOrNull(receipt.transactionType?.kdvRate as any);
-
-    return (kdv === null || kdv <= 0) && (rate === null || rate <= 0);
-}
-
 function toRowArray(r: ReceiptData): (string | number)[] {
     return [
         r.businessName ?? "",
@@ -127,28 +120,32 @@ function formatLastRow(ws: ExcelJS.Worksheet) {
 
 export function enrichReceiptData(receipt: ReceiptData): void {
     const total = toNumericOrNull(receipt.totalAmount as any);
+    if (total === null) {
+        throw new Error("Excel'e dışa aktarma için toplam tutar gereklidir ve geçerli bir sayı olmalıdır.");
+    }
     const kdv = toNumericOrNull(receipt.kdvAmount as any);
-    const rate = receipt.transactionType?.kdvRate ?? null;
-    const shouldRejectForVat = shouldRejectExcelWriteForVat(receipt);
+    const kdvRate = receipt.transactionType?.kdvRate ?? null;
+
+    let isKdvMissing = kdv === null || kdv <= 0;
+    let isKdvRateMissing = kdvRate === null || kdvRate === undefined || kdvRate <= 0;   
+    if (isKdvMissing && isKdvRateMissing) {
+        throw new Error("Excel'e dışa aktarma için KDV oranı ve KDV tutarınından en az birinin O'dan büyük olması gerekir .");
+    }
 
     receipt.totalAmount = total;
     receipt.kdvAmount = kdv;
-
-    if (shouldRejectForVat) {
-        throw new Error("KDV rate and KDV amount must not both be less than or equal to 0 for Excel export.");
-    }
-
+    
     // Rule 1: If kdvAmount is missing but kdvRate exists
-    if ((kdv === null || kdv === undefined) && rate !== null) {
+    if (isKdvMissing && !isKdvRateMissing && kdvRate !== null) {
         if (total !== null && total !== undefined) {
             receipt.kdvAmount = Number(
-                (total - (total / (1 + rate / 100))).toFixed(2)
+                (total - (total / (1 + kdvRate / 100))).toFixed(2)
             );
         }
     }
 
     // Rule 2: If kdvRate is missing but kdvAmount exists
-    if ((rate === null || rate === undefined) && kdv !== null && kdv !== undefined) {
+    if (isKdvRateMissing && !isKdvMissing && kdv !== null) {
         if (total !== null && total !== undefined && total !== 0) {
             const calcRate = (kdv * 100) / total;
             const nearest = [1, 10, 20].reduce((prev, curr) =>
@@ -164,10 +161,10 @@ export function enrichReceiptData(receipt: ReceiptData): void {
     }
 
     // Update totalAmount as number with 2 decimals if string
-    if (total !== null && total !== undefined) {
+    if (total !== null) {
         receipt.totalAmount = Number(total.toFixed(2));
     }
-    if (kdv !== null && kdv !== undefined) {
+    if (kdv !== null) {
         receipt.kdvAmount = Number(kdv.toFixed(2));
     }
 }
@@ -301,7 +298,7 @@ export async function writeReceiptToS3WithMonthlySheets(
 
         return {
             status: "success", 
-            message: "Row appended.", 
+            message: "Satır eklendi.", 
             filePath: url, 
             sheet: sheetName,      // <-- include
             row: newRow.number,

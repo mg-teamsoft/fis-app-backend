@@ -47,21 +47,47 @@ export async function createReceiptInternal(req: Request, options?: CreateReceip
             }
         }
 
-        const receipt = await ReceiptModel.create(receiptBody);
+        const receiptIdentity = {
+            businessName: receiptBody.businessName,
+            receiptNumber: receiptBody.receiptNumber,
+            transactionDate: receiptBody.transactionDate,
+            userId,
+        };
 
-        try {
-            await consumeQuota(userId);
-        } catch (quotaError: any) {
-            // Keep business rule consistent: receipt creation must cost quota.
-            await ReceiptModel.deleteOne({ _id: receipt._id, userId }).catch(() => { });
-            const quotaResponse = {
-                message: 'Paket hakkınız kalmadı. Yeni bir plan satın alın.',
-                error: quotaError?.message,
-            };
-            return { ok: false, status: 403, body: quotaResponse };
+        const upsertResult = await ReceiptModel.findOneAndUpdate(
+            receiptIdentity,
+            { $set: receiptBody },
+            {
+                upsert: true,
+                new: true,
+                runValidators: true,
+                setDefaultsOnInsert: true,
+                includeResultMetadata: true,
+            }
+        );
+
+        const receipt = upsertResult.value;
+        const wasExistingReceipt = Boolean(upsertResult.lastErrorObject?.updatedExisting);
+
+        if (!receipt) {
+            return { ok: false, status: 500, body: { message: 'Failed to create or update receipt.' } };
         }
 
-        return { ok: true, status: 201, receipt };
+        if (!wasExistingReceipt) {
+            try {
+                await consumeQuota(userId);
+            } catch (quotaError: any) {
+                // Keep business rule consistent: receipt creation must cost quota.
+                await ReceiptModel.deleteOne({ _id: receipt._id, userId }).catch(() => { });
+                const quotaResponse = {
+                    message: 'Paket hakkınız kalmadı. Yeni bir plan satın alın.',
+                    error: quotaError?.message,
+                };
+                return { ok: false, status: 403, body: quotaResponse };
+            }
+        }
+
+        return { ok: true, status: wasExistingReceipt ? 200 : 201, receipt };
     } catch (error: any) {
         if (error.code === 11000) {
             const duplicateResponse = {
