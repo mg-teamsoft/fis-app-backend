@@ -69,6 +69,18 @@ function toNumber2(val: string | number | null | undefined): number | '' {
     return Number(n.toFixed(2)); // ensure exactly 2 decimals
 }
 
+function toNumericOrNull(val: string | number | null | undefined): number | null {
+    const parsed = toNumber2(val);
+    return parsed === '' ? null : parsed;
+}
+
+export function shouldRejectExcelWriteForVat(receipt: ReceiptData): boolean {
+    const kdv = toNumericOrNull(receipt.kdvAmount as any);
+    const rate = toNumericOrNull(receipt.transactionType?.kdvRate as any);
+
+    return (kdv === null || kdv <= 0) && (rate === null || rate <= 0);
+}
+
 function toRowArray(r: ReceiptData): (string | number)[] {
     return [
         r.businessName ?? "",
@@ -113,11 +125,18 @@ function formatLastRow(ws: ExcelJS.Worksheet) {
     [e, f, g].forEach((c) => (c.alignment = { horizontal: "right" }));
 }
 
-function enrichReceiptData(receipt: ReceiptData): void {
-    // Ensure numbers
-    const total = receipt.totalAmount;
-    const kdv = receipt.kdvAmount;
+export function enrichReceiptData(receipt: ReceiptData): void {
+    const total = toNumericOrNull(receipt.totalAmount as any);
+    const kdv = toNumericOrNull(receipt.kdvAmount as any);
     const rate = receipt.transactionType?.kdvRate ?? null;
+    const shouldRejectForVat = shouldRejectExcelWriteForVat(receipt);
+
+    receipt.totalAmount = total;
+    receipt.kdvAmount = kdv;
+
+    if (shouldRejectForVat) {
+        throw new Error("KDV rate and KDV amount must not both be less than or equal to 0 for Excel export.");
+    }
 
     // Rule 1: If kdvAmount is missing but kdvRate exists
     if ((kdv === null || kdv === undefined) && rate !== null) {
@@ -129,7 +148,7 @@ function enrichReceiptData(receipt: ReceiptData): void {
     }
 
     // Rule 2: If kdvRate is missing but kdvAmount exists
-    if ((rate === null || rate === undefined) && kdv !== null) {
+    if ((rate === null || rate === undefined) && kdv !== null && kdv !== undefined) {
         if (total !== null && total !== undefined && total !== 0) {
             const calcRate = (kdv * 100) / total;
             const nearest = [1, 10, 20].reduce((prev, curr) =>

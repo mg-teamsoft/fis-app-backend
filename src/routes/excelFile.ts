@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { ReceiptData } from '../types/receiptTypes';
 import { auditInterceptor } from '../middleware/auditInterceptor';
 import { JwtUtil } from '../utils/jwtUtil';
-import { writeReceiptToS3WithMonthlySheets } from '../services/excelWriterWithExcelJs';
+import { shouldRejectExcelWriteForVat, writeReceiptToS3WithMonthlySheets } from '../services/excelWriterWithExcelJs';
 import { listUserExcelFiles, presignExcelGetUrl } from '../services/excelWriterService';
 import { mapReceiptDataToReceiptModel } from '../utils/receiptMapper';
 import { createReceiptInternal } from '../controllers/receiptController';
@@ -95,6 +95,13 @@ router.post('/write',
       return res.status(400).json({
         status: 'error',
         message: 'Missing key fields (e.g., businessName or amounts).',
+      });
+    }
+
+    if (shouldRejectExcelWriteForVat(payload)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'KDV rate and KDV amount must not both be less than or equal to 0 for Excel export.',
       });
     }
 
