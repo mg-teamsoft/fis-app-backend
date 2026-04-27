@@ -164,7 +164,7 @@ export async function createContactInvite(req: Request, res: Response) {
             userId: inviteeUser.userId,
             notificationId: notificationId,
             title: "Yeni Bağlantı Daveti",
-            subtitle: `${inviter.userName} sizi bağlantı olarak eklemek istiyor.`,
+            subtitle: `${inviter.email} - ${inviter.userName} sizi bağlantı olarak eklemek istiyor.`,
             actionType: "CONTACT_INVITE",
             screen: "/connections",
             content: "Daveti kabul ederek bağlantı kurabilir ve harcamalarınızı yönetebilirsiniz.",
