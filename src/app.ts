@@ -16,7 +16,7 @@ import homeSummaryRoutes from "./routes/homeSummary";
 import userRoutes from "./routes/users";
 import userPlanRoutes from "./routes/userPlans";
 import purchaseRoutes from "./routes/purchasesRoutes";
-import contactRoutes from "./routes/contacts";
+import contactRoutes, { publicContactRoutes } from "./routes/contacts";
 import notificationRoutes from "./routes/notifications";
 
 import { requireAuth } from './middleware/authJwt';
@@ -44,6 +44,7 @@ app.use("/health-me", healthRouter);
 // public auth endpoints
 app.use("/auth", authRoutes);
 app.use("/plans", publicPlanRoutes);
+app.use("/contacts", publicContactRoutes);
 
 // Secure these route groups
 app.use('/image', requireAuth(), uploadRoutes);

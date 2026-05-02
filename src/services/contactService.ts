@@ -82,20 +82,13 @@ export async function revokeContactLink(args: {
 
 export async function acceptInviteById(args: {
   inviteId?: string;
-  supervisorUserId: string;
+  supervisorUserId?: string;
   token?: string;
 }) {
   const { inviteId, supervisorUserId, token } = args;
-
-  // 1) Load supervisor email (match-by-email default)
-  const supervisor = await UserModel.findOne({ userId: supervisorUserId })
-    .select({ email: 1, userId: 1 })
-    .lean();
-
-  const supervisorEmail = (supervisor?.email ?? "").trim().toLowerCase();
   const now = new Date();
 
-  // 2) Load invite
+  // 1) Load invite
   const invite = await findInviteForAction({ inviteId, token });
   if (!invite) {
     const e: any = new Error("Invite not found");
@@ -103,6 +96,19 @@ export async function acceptInviteById(args: {
     throw e;
   }
   const resolvedInviteId = invite.inviteId;
+  const resolvedSupervisorUserId = supervisorUserId || (token ? invite.inviteeUserId ?? "" : "");
+  if (!resolvedSupervisorUserId) {
+    const e: any = new Error("Authentication is required to accept this invite");
+    e.statusCode = 401;
+    throw e;
+  }
+
+  // 2) Load supervisor email (match-by-email default)
+  const supervisor = await UserModel.findOne({ userId: resolvedSupervisorUserId })
+    .select({ email: 1, userId: 1 })
+    .lean();
+
+  const supervisorEmail = (supervisor?.email ?? "").trim().toLowerCase();
 
   // 3) Validate status + expiry
   if (invite.status !== "PENDING") {
@@ -110,14 +116,14 @@ export async function acceptInviteById(args: {
     if (invite.status === "ACCEPTED") {
       const existing = await ContactLinkModel.findOne({
         customerUserId: invite.inviterUserId,
-        supervisorUserId,
+        supervisorUserId: resolvedSupervisorUserId,
       }).lean();
 
       if (existing) return existing;
 
       // If invite accepted but link missing, we can recreate it
       const recreated = await ContactLinkModel.findOneAndUpdate(
-        { customerUserId: invite.inviterUserId, supervisorUserId },
+        { customerUserId: invite.inviterUserId, supervisorUserId: resolvedSupervisorUserId },
         { $set: { isActive: true, permissions: invite.permissions, revokedAt: null } },
         { new: true, upsert: true }
       ).lean();
@@ -156,7 +162,7 @@ export async function acceptInviteById(args: {
   const inviteEmail = (invite.inviteeEmail ?? "").trim().toLowerCase();
 
   const emailMatches = supervisorEmail && inviteEmail && supervisorEmail === inviteEmail;
-  const userMatches = invite.inviteeUserId && invite.inviteeUserId === supervisorUserId;
+  const userMatches = invite.inviteeUserId && invite.inviteeUserId === resolvedSupervisorUserId;
 
   if (!emailMatches && !userMatches) {
     const e: any = new Error("Invite does not belong to this user");
@@ -166,7 +172,7 @@ export async function acceptInviteById(args: {
 
   // 6) Create / reactivate link (unique index prevents duplicates)
   const link = await ContactLinkModel.findOneAndUpdate(
-    { customerUserId: invite.inviterUserId, supervisorUserId },
+    { customerUserId: invite.inviterUserId, supervisorUserId: resolvedSupervisorUserId },
     {
       $set: {
         isActive: true,
@@ -176,7 +182,7 @@ export async function acceptInviteById(args: {
       $setOnInsert: {
         linkId: randomUuid(),
         customerUserId: invite.inviterUserId,
-        supervisorUserId,
+        supervisorUserId: resolvedSupervisorUserId,
       },
     },
     { new: true, upsert: true }
@@ -188,7 +194,7 @@ export async function acceptInviteById(args: {
     {
       $set: {
         status: "ACCEPTED",
-        inviteeUserId: supervisorUserId,
+        inviteeUserId: resolvedSupervisorUserId,
         respondedAt: now,
       },
     }
@@ -294,16 +300,10 @@ export async function listInvitesCreatedByUser(inviterUserId: string) {
 
 export async function rejectInviteById(args: {
   inviteId?: string;
-  supervisorUserId: string;
+  supervisorUserId?: string;
   token?: string;
 }) {
   const { inviteId, supervisorUserId, token } = args;
-
-  const supervisor = await UserModel.findOne({ userId: supervisorUserId })
-    .select({ email: 1, userId: 1 })
-    .lean();
-
-  const supervisorEmail = (supervisor?.email ?? "").trim().toLowerCase();
   const now = new Date();
 
   const invite = await findInviteForAction({ inviteId, token });
@@ -313,6 +313,18 @@ export async function rejectInviteById(args: {
     throw e;
   }
   const resolvedInviteId = invite.inviteId;
+  const resolvedSupervisorUserId = supervisorUserId || (token ? invite.inviteeUserId ?? "" : "");
+  if (!resolvedSupervisorUserId) {
+    const e: any = new Error("Authentication is required to reject this invite");
+    e.statusCode = 401;
+    throw e;
+  }
+
+  const supervisor = await UserModel.findOne({ userId: resolvedSupervisorUserId })
+    .select({ email: 1, userId: 1 })
+    .lean();
+
+  const supervisorEmail = (supervisor?.email ?? "").trim().toLowerCase();
 
   // idempotent: if already rejected/accepted/etc.
   if (invite.status !== "PENDING") {
@@ -342,7 +354,7 @@ export async function rejectInviteById(args: {
   // ownership check (email or userId)
   const inviteEmail = (invite.inviteeEmail ?? "").trim().toLowerCase();
   const emailMatches = supervisorEmail && inviteEmail && supervisorEmail === inviteEmail;
-  const userMatches = invite.inviteeUserId && invite.inviteeUserId === supervisorUserId;
+  const userMatches = invite.inviteeUserId && invite.inviteeUserId === resolvedSupervisorUserId;
   if (!emailMatches && !userMatches) {
     const e: any = new Error("Invite does not belong to this user");
     e.statusCode = 403;
@@ -351,7 +363,7 @@ export async function rejectInviteById(args: {
 
   await ContactInviteModel.updateOne(
     { inviteId: resolvedInviteId, status: "PENDING" },
-    { $set: { status: "REJECTED", inviteeUserId: supervisorUserId, respondedAt: now } }
+    { $set: { status: "REJECTED", inviteeUserId: resolvedSupervisorUserId, respondedAt: now } }
   );
 
   return await ContactInviteModel.findOne({ inviteId: resolvedInviteId }).lean();

@@ -392,6 +392,26 @@ export async function acceptInvite(req: Request, res: Response) {
   }
 }
 
+// Public token-based invite accept from email/deep link.
+export async function acceptInvitePublic(req: Request, res: Response) {
+  const token = readInviteToken(req);
+
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ status: "error", message: "token is required" });
+  }
+
+  try {
+    const link = await acceptInviteById({ token });
+    return res.json({ status: "ok", link });
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    return res.status(status).json({
+      status: "error",
+      message: e?.message ?? "Failed to accept invite",
+    });
+  }
+}
+
 // Supervisor rejects invite
 export async function rejectInvite(req: Request, res: Response) {
   const { userId } = await JwtUtil.extractUser(req);
@@ -406,6 +426,25 @@ export async function rejectInvite(req: Request, res: Response) {
 
   try {
     const invite = await rejectInviteById({ inviteId, supervisorUserId: userId, token });
+    return res.json({ status: "ok", invite });
+  } catch (e: any) {
+    return res.status(e?.statusCode ?? 500).json({
+      status: "error",
+      message: e?.message ?? "Failed to reject invite",
+    });
+  }
+}
+
+// Public token-based invite reject from email/deep link.
+export async function rejectInvitePublic(req: Request, res: Response) {
+  const token = readInviteToken(req);
+
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ status: "error", message: "token is required" });
+  }
+
+  try {
+    const invite = await rejectInviteById({ token });
     return res.json({ status: "ok", invite });
   } catch (e: any) {
     return res.status(e?.statusCode ?? 500).json({
