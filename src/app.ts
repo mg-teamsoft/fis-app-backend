@@ -29,6 +29,22 @@ const app = express();
 app.use(cors())
 app.use(express.json());
 
+const corsOptions = {
+  origin: [
+    "https://app.myfisapp.com",
+    "http://localhost:5000",
+    "http://localhost:3000"
+  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+app.use(express.json());
+
+
 morgan(':method :url :status :res[content-length] - :response-time ms')
 app.use(morgan('combined'));
 
