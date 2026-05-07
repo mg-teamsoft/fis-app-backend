@@ -24,24 +24,21 @@ import morgan from "morgan";
 import { healthRouter } from './routes/health';
 import iapRoutes from './routes/iapRoutes';
 import supervisorRoutes from './routes/supervisorRoutes';
+import config from './configs/config';
 
 const app = express();
-app.use(cors())
-app.use(express.json());
+const allowedOrigins = [
+  config.frontendUrl,
+];
 
 const corsOptions = {
-  origin: [
-    "https://app.myfisapp.com",
-    "http://localhost:5000",
-    "http://localhost:3000"
-  ],
+  origin: [...allowedOrigins],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
-
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 
