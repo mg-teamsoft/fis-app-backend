@@ -30,9 +30,21 @@ export async function verifyApplePurchase(req: Request, res: Response) {
     return res.json({ status: "ok", entitlement });
   } catch (err: any) {
     const status = err?.statusCode ?? 500;
+    console.error("[IAP] Apple purchase verification failed", {
+      status,
+      userId,
+      productId,
+      transactionId,
+      message: err?.message,
+      code: err?.code,
+      appleStatus: err?.response?.status,
+      appleData: err?.response?.data,
+      stack: err?.stack,
+    });
     return res.status(status).json({
       status: "error",
       message: err?.message ?? "Verification failed",
+      details: err?.response?.data ?? undefined,
     });
   }
 }

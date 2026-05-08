@@ -29,8 +29,8 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
 
   let appleTransactionId: string;
 
-  // 3) Call Apple Transaction History API (v2) and select the transaction matching this productId
-  console.log("[IAP][Step 3/8] Fetch transaction history from Apple Server API", { transactionId });
+  // 2) Call Apple Transaction History API (v2) and select the transaction matching this productId
+  console.log("[IAP][Step 2/8] Fetch transaction history from Apple Server API", { transactionId });
   const history = await getTransactionHistory(transactionId);
 
   const signedList: string[] = Array.isArray(history?.signedTransactions)
@@ -38,13 +38,13 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
     : [];
 
   if (!signedList.length) {
-    console.log("[IAP][Step 3/8] Apple history returned no signedTransactions", { transactionId });
+    console.log("[IAP][Step 2/8] Apple history returned no signedTransactions", { transactionId });
     const e: any = new Error("Apple history returned no signedTransactions");
     e.statusCode = 502;
     throw e;
   }
 
-  console.log("[IAP][Step 4/8] Decode signedTransactions and match by productId", {
+  console.log("[IAP][Step 3/8] Decode signedTransactions and match by productId", {
     requestedProductId: productId,
     count: signedList.length,
   });
@@ -63,7 +63,7 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
   }
 
   if (!matched) {
-    console.log("[IAP][Step 4/8] No matching transaction found in history for requested productId", {
+    console.log("[IAP][Step 3/8] No matching transaction found in history for requested productId", {
       requestedProductId: productId,
       transactionId,
     });
@@ -73,7 +73,7 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
     throw e;
   }
 
-  console.log("[IAP][Step 4/8] Matched Apple payload", {
+  console.log("[IAP][Step 3/8] Matched Apple payload", {
     txProductId: matched.productId,
     txBundleId: matched.bundleId,
     appleTransactionId: matched.transactionId,
@@ -81,13 +81,13 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
     type: matched.type,
   });
 
-  // 5) Validate bundle id
-  console.log("[IAP][Step 5/8] Validate payload bundleId", {
+  // 4) Validate bundle id
+  console.log("[IAP][Step 4/8] Validate payload bundleId", {
     requestedBundleId: appleConfig.bundleId,
     txBundleId: matched.bundleId,
   });
   if (matched.bundleId !== appleConfig.bundleId) {
-    console.log("[IAP][Step 5/8] bundleId mismatch", {
+    console.log("[IAP][Step 4/8] bundleId mismatch", {
       requestedBundleId: appleConfig.bundleId,
       txBundleId: matched.bundleId,
     });
@@ -95,15 +95,15 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
     e.statusCode = 400;
     throw e;
   }
-  console.log("[IAP][Step 5/8] Payload validation passed", {
+  console.log("[IAP][Step 4/8] Payload validation passed", {
     transactionId,
     appleTransactionId: matched.transactionId,
   });
 
   appleTransactionId = matched.transactionId as string;
 
-  // 2) Idempotency (by real Apple transactionId)
-  console.log("[IAP][Step 2/8] Check existing verified transaction", {
+  // 5) Idempotency (by real Apple transactionId)
+  console.log("[IAP][Step 5/8] Check existing verified transaction", {
     transactionId,
     appleTransactionId,
   });
@@ -113,12 +113,12 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
   }).lean();
   if (existing?.status === "verified") {
     console.log(
-      "[IAP][Step 2/8] Existing verified transaction found, returning entitlement snapshot",
+      "[IAP][Step 5/8] Existing verified transaction found, returning entitlement snapshot",
       { transactionId, appleTransactionId }
     );
     return await getUserEntitlementSnapshot(userId);
   }
-  console.log("[IAP][Step 2/8] No existing verified transaction found", {
+  console.log("[IAP][Step 5/8] No existing verified transaction found", {
     transactionId,
     appleTransactionId,
   });

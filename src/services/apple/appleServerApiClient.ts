@@ -9,6 +9,17 @@ function baseUrl() {
     : "https://api.storekit.itunes.apple.com";
 }
 
+function logAppleApiError(label: string, e: any, context: Record<string, any>) {
+  console.error(label, {
+    ...context,
+    status: e?.response?.status,
+    data: e?.response?.data,
+    code: e?.code,
+    message: e?.message,
+    stack: e?.stack,
+  });
+}
+
 export async function getTransactionInfo(transactionId: string) {
   const token = await createAppleServerApiToken();
   const url = `${baseUrl()}/inApps/v1/transactions/${encodeURIComponent(transactionId)}`;
@@ -17,10 +28,10 @@ export async function getTransactionInfo(transactionId: string) {
     const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000, });
     return res.data;
   } catch (e: any) {
-    console.error("Apple API error", {
-      status: e?.response?.status,
-      data: e?.response?.data,
+    logAppleApiError("Apple transaction API error", e, {
       url,
+      appleEnv: appleConfig.env,
+      transactionId,
     });
     throw e;
   }
@@ -34,10 +45,10 @@ export async function getSubscriptionInfo(transactionId: string) {
     const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000, });
     return res.data;
   } catch (e: any) {
-    console.error("Apple API error", {
-      status: e?.response?.status,
-      data: e?.response?.data,
+    logAppleApiError("Apple subscription API error", e, {
       url,
+      appleEnv: appleConfig.env,
+      transactionId,
     });
     throw e;
   }
@@ -67,11 +78,11 @@ export async function getTransactionHistory(transactionId: string, query?: Apple
     });
     return res.data;
   } catch (e: any) {
-    console.error("Apple API error", {
-      status: e?.response?.status,
-      data: e?.response?.data,
+    logAppleApiError("Apple transaction history API error", e, {
       url,
       query,
+      appleEnv: appleConfig.env,
+      transactionId,
     });
     throw e;
   }

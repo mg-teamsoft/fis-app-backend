@@ -61,7 +61,10 @@ async function resetExpiredUserPlans() {
           updates.quota = freePlan.quota;
           updates.endDate = PlanUtil.getNextEndDate({ period: freePlan.period, from: now });
         } else {
-          updates.quota = templatePlan.quota;
+          updates.quota =
+            planKey === PlanKey.FREE && userPlan.quota > templatePlan.quota
+              ? userPlan.quota
+              : templatePlan.quota;
           updates.period = templatePlan.period;
           updates.endDate = PlanUtil.getNextEndDate({ period: templatePlan.period, from: now });
         }

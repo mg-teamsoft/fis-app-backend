@@ -14,8 +14,39 @@ export async function createAppleServerApiToken() {
     throw new Error("Missing Apple Server API env vars (ISSUER_ID, KEY_ID, BUNDLE_ID, PRIVATE_KEY_PATH)");
   }
 
-  const privateKeyPem = fs.readFileSync(keyPath, "utf8");
-  const privateKey = await importPKCS8(privateKeyPem, alg);
+  console.log("[AppleJWT] Creating Apple Server API token", {
+    env: appleConfig.env,
+    bundleId,
+    keyId,
+    issuerId,
+    keyPath,
+    cwd: process.cwd(),
+    keyFileExists: fs.existsSync(keyPath),
+  });
+
+  let privateKeyPem: string;
+  try {
+    privateKeyPem = fs.readFileSync(keyPath, "utf8");
+  } catch (error: any) {
+    console.error("[AppleJWT] Failed to read Apple private key file", {
+      keyPath,
+      cwd: process.cwd(),
+      code: error?.code,
+      message: error?.message,
+    });
+    throw error;
+  }
+
+  let privateKey: Awaited<ReturnType<typeof importPKCS8>>;
+  try {
+    privateKey = await importPKCS8(privateKeyPem, alg);
+  } catch (error: any) {
+    console.error("[AppleJWT] Failed to import Apple private key", {
+      keyPath,
+      message: error?.message,
+    });
+    throw error;
+  }
 
   const now = Math.floor(Date.now() / 1000);
 
