@@ -1,4 +1,4 @@
-import { getTransactionHistory } from "./apple/appleServerApiClient";
+import { getTransactionInfo } from "./apple/appleServerApiClient";
 import { decodeJwsPayload } from "./apple/jws";
 import { PurchaseTransaction } from "../models/PurchaseTransactionModel";
 import { Plan, PlanKey } from "../models/PlanModel";
@@ -29,47 +29,55 @@ export async function verifyAppleTransactionAndGrantEntitlement(args: {
 
   let appleTransactionId: string;
 
-  // 2) Call Apple Transaction History API (v2) and select the transaction matching this productId
-  console.log("[IAP][Step 2/8] Fetch transaction history from Apple Server API", { transactionId });
-  const history = await getTransactionHistory(transactionId);
+  // 2) Call Apple Get Transaction Info API for the transaction id from the device
+  console.log("[IAP][Step 2/8] Fetch transaction info from Apple Server API", { transactionId });
+  const transactionInfo = await getTransactionInfo(transactionId);
 
-  const signedList: string[] = Array.isArray(history?.signedTransactions)
-    ? history.signedTransactions
-    : [];
-
-  if (!signedList.length) {
-    console.log("[IAP][Step 2/8] Apple history returned no signedTransactions", { transactionId });
-    const e: any = new Error("Apple history returned no signedTransactions");
+  if (!transactionInfo?.signedTransactionInfo) {
+    console.log("[IAP][Step 2/8] Apple transaction response missing signedTransactionInfo", {
+      transactionId,
+      responseKeys: transactionInfo ? Object.keys(transactionInfo) : [],
+    });
+    const e: any = new Error("Apple transaction response missing signedTransactionInfo");
     e.statusCode = 502;
     throw e;
   }
 
-  console.log("[IAP][Step 3/8] Decode signedTransactions and match by productId", {
+  console.log("[IAP][Step 3/8] Decode signedTransactionInfo and validate productId", {
     requestedProductId: productId,
-    count: signedList.length,
   });
 
-  let matched: any = null;
-  for (const signed of signedList) {
-    try {
-      const payload = decodeJwsPayload(signed);
-      if (payload?.productId === productId) {
-        matched = payload;
-        break;
-      }
-    } catch (_) {
-      // ignore decode errors for individual entries
-    }
+  let matched: any;
+  try {
+    matched = decodeJwsPayload(transactionInfo.signedTransactionInfo);
+  } catch (error: any) {
+    console.log("[IAP][Step 3/8] Failed to decode signedTransactionInfo", {
+      transactionId,
+      message: error?.message,
+    });
+    const e: any = new Error("Invalid signedTransactionInfo");
+    e.statusCode = 502;
+    throw e;
   }
 
-  if (!matched) {
-    console.log("[IAP][Step 3/8] No matching transaction found in history for requested productId", {
+  if (matched?.productId !== productId) {
+    console.log("[IAP][Step 3/8] productId mismatch", {
       requestedProductId: productId,
+      txProductId: matched?.productId,
       transactionId,
     });
-    // Sandbox can be eventually consistent; treat as pending rather than hard error
-    const e: any = new Error("No matching transaction found for requested productId");
-    e.statusCode = 409;
+    const e: any = new Error("productId mismatch");
+    e.statusCode = 400;
+    throw e;
+  }
+
+  if (matched?.transactionId !== transactionId) {
+    console.log("[IAP][Step 3/8] transactionId mismatch", {
+      requestedTransactionId: transactionId,
+      txTransactionId: matched?.transactionId,
+    });
+    const e: any = new Error("transactionId mismatch");
+    e.statusCode = 400;
     throw e;
   }
 
