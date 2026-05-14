@@ -4,6 +4,8 @@ import { UserModel } from '../models/User';
 import { hashPassword } from '../utils/password';
 import { JwtUtil } from '../utils/jwtUtil';
 import { normalizeEmail } from '../utils/normalizeUtil';
+import { enqueueAccountDeletion, getAccountDeletionStatus, scheduleAccountDeletionJob } from '../services/accountDeletionService';
+import { TokenSession } from '../models/TokenSession';
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
 const safeProjection =
@@ -135,17 +137,60 @@ export async function deleteUser(req: Request, res: Response) {
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }  
-    const user = await UserModel.findOneAndDelete({ userId: userId });
+    const user = await UserModel.findOne({ userId: userId });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    res.locals.auditPayload = { userId: user.userId, email: user.email };
-    res.locals.auditMessage = 'User deleted';
+    const job = await enqueueAccountDeletion(userId, { schedule: false });
+    const now = new Date();
 
-    return res.status(200).json({ message: 'User deleted successfully.' });
+    await UserModel.updateOne(
+      { userId },
+      {
+        $set: {
+          isDeleted: true,
+          deletionStatus: "pending",
+          deletionJobId: job.jobId,
+          deletionRequestedAt: now,
+          deletedAt: now,
+        },
+      }
+    );
+
+    await TokenSession.updateMany({ userId }, { $set: { revoked: true } });
+    scheduleAccountDeletionJob(job.jobId);
+
+    res.locals.skipAudit = true;
+    res.locals.auditPayload = { userId: user.userId, email: user.email };
+    res.locals.auditMessage = 'User deletion queued';
+
+    return res.status(202).json({
+      status: "queued",
+      message: "Account deletion queued.",
+      jobId: job.jobId,
+      statusUrl: `${req.baseUrl}/deletion-status/${job.jobId}`,
+    });
   } catch (error: any) {
-    return res.status(500).json({ message: 'Failed to delete user.', error: error?.message });
+    return res.status(500).json({ message: 'Failed to queue user deletion.', error: error?.message });
+  }
+}
+
+export async function getUserDeletionStatus(req: Request, res: Response) {
+  try {
+    const { jobId } = req.params;
+    if (!jobId) {
+      return res.status(400).json({ message: "jobId is required." });
+    }
+
+    const job = await getAccountDeletionStatus(jobId);
+    if (!job) {
+      return res.status(404).json({ message: "Deletion job not found." });
+    }
+
+    return res.json(job);
+  } catch (error: any) {
+    return res.status(500).json({ message: "Failed to fetch deletion status.", error: error?.message });
   }
 }

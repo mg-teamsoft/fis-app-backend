@@ -13,7 +13,7 @@ import uploadByKeyRoutes from "./routes/uploadByKey";
 import receiptRoutes from "./routes/receipts";
 import planRoutes, { publicPlanRoutes } from "./routes/plans";
 import homeSummaryRoutes from "./routes/homeSummary";
-import userRoutes from "./routes/users";
+import userRoutes, { publicUserRoutes } from "./routes/users";
 import userPlanRoutes from "./routes/userPlans";
 import purchaseRoutes from "./routes/purchasesRoutes";
 import contactRoutes, { publicContactRoutes } from "./routes/contacts";
@@ -25,6 +25,7 @@ import { healthRouter } from './routes/health';
 import iapRoutes from './routes/iapRoutes';
 import supervisorRoutes from './routes/supervisorRoutes';
 import config from './configs/config';
+import { resumePendingAccountDeletionJobs } from './services/accountDeletionService';
 
 const app = express();
 const allowedOrigins = [
@@ -46,7 +47,11 @@ morgan(':method :url :status :res[content-length] - :response-time ms')
 app.use(morgan('combined'));
 
 console.log("Mongo starting...");
-connectMongo().catch((e) => {
+connectMongo().then(() => {
+  resumePendingAccountDeletionJobs().catch((e) => {
+    console.error("Account deletion job resume error:", e);
+  });
+}).catch((e) => {
   console.error("Mongo connection error:", e);
   process.exit(1);
 });
@@ -58,6 +63,7 @@ app.use("/health-me", healthRouter);
 app.use("/auth", authRoutes);
 app.use("/plans", publicPlanRoutes);
 app.use("/contacts", publicContactRoutes);
+app.use("/users", publicUserRoutes);
 
 // Secure these route groups
 app.use('/image', requireAuth(), uploadRoutes);

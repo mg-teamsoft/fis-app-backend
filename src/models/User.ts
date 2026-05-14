@@ -10,6 +10,11 @@ export interface UserDoc extends Document {
   verificationTokenExpires?: Date | null;
   passwordResetToken?: string | null;
   passwordResetExpires?: Date | null;
+  isDeleted: boolean;
+  deletionStatus?: "none" | "pending";
+  deletionJobId?: string | null;
+  deletionRequestedAt?: Date | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +29,11 @@ const UserSchema = new Schema<UserDoc>({
   verificationTokenExpires: { type: Date },
   passwordResetToken: { type: String, index: true, default: null },
   passwordResetExpires: { type: Date, default: null },
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletionStatus: { type: String, enum: ["none", "pending"], default: "none", index: true },
+  deletionJobId: { type: String, default: null, index: true },
+  deletionRequestedAt: { type: Date, default: null },
+  deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 

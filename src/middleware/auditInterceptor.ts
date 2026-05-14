@@ -29,6 +29,10 @@ export function auditInterceptor(action: AuditAction) {
         // Hook into finish & error to log outcome
         const onFinish = async () => {
             try {
+                if ((res.locals as any).skipAudit) {
+                    return;
+                }
+
                 const statusCode = res.statusCode;
                 const status: "success" | "error" = statusCode >= 200 && statusCode < 400 ? "success" : "error";
                 const message =
@@ -59,6 +63,10 @@ export function auditInterceptor(action: AuditAction) {
 
         const onError = async (err: any) => {
             try {
+                if ((res.locals as any).skipAudit) {
+                    return;
+                }
+
                 await AuditLogModel.create({
                     requestId,
                     action,

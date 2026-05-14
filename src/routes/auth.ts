@@ -255,6 +255,10 @@ router.post("/login", async (req: Request, res: Response) => {
     const user = await UserModel.findOne({ userName });
     if (!user) return res.status(401).json({ status: "error", message: "Invalid credentials" });
 
+    if (user.isDeleted || user.deletionStatus === "pending") {
+      return res.status(403).json({ status: "error", message: "Account is deleted or pending deletion" });
+    }
+
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) return res.status(401).json({ status: "error", message: "Invalid credentials" });
 

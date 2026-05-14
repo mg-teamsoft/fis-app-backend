@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { jwtVerify, createRemoteJWKSet, importSPKI, JWTPayload } from "jose";
 import { TokenSession } from "../models/TokenSession";
 import { sha256 } from "../utils/cryptoUtil";
+import { UserModel } from "../models/User";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -75,6 +76,15 @@ async function ensureTokenSession(token: string, verified: Verified) {
     const err: any = new Error("Token revoked");
     err.status = 401;
     throw err;
+  }
+
+  if (userId) {
+    const user = await UserModel.findOne({ userId }).select({ isDeleted: 1, deletionStatus: 1 }).lean();
+    if (!user || user.isDeleted || user.deletionStatus === "pending") {
+      const err: any = new Error("Account is deleted or pending deletion");
+      err.status = 401;
+      throw err;
+    }
   }
 
   return { userId, userName, jti, expiresAt };

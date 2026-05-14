@@ -4,11 +4,15 @@ import {
   createUser,
   deleteUser,
   getUser,
+  getUserDeletionStatus,
   listUsers,
   updateUser,
 } from '../controllers/userController';
 
 const router = Router();
+export const publicUserRoutes = Router();
+
+publicUserRoutes.get('/deletion-status/:jobId', getUserDeletionStatus);
 
 router.get('/list', auditInterceptor('USER_LIST'), listUsers);
 router.get('/', auditInterceptor('USER_GET'), getUser);

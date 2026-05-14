@@ -1,4 +1,12 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommandInput } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommandInput,
+  ListObjectsV2Command,
+  DeleteObjectsCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { awsConfig } from "../configs/aws";
 import { Readable } from "stream";
@@ -84,4 +92,49 @@ export async function getObjectBufferAsU8(key: string): Promise<Uint8Array> {
   const buf = Buffer.concat(chunks); // Node Buffer
   // Wrap in Uint8Array view using exact range
   return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+}
+
+export async function deleteObjectsByPrefix(prefix: string): Promise<number> {
+  let continuationToken: string | undefined;
+  let deletedCount = 0;
+
+  do {
+    const listed = await s3.send(
+      new ListObjectsV2Command({
+        Bucket: awsConfig.bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      })
+    );
+
+    const keys = (listed.Contents ?? [])
+      .map((item) => item.Key)
+      .filter((key): key is string => Boolean(key));
+
+    for (let i = 0; i < keys.length; i += 1000) {
+      const chunk = keys.slice(i, i + 1000);
+      if (chunk.length === 0) continue;
+
+      const result = await s3.send(
+        new DeleteObjectsCommand({
+          Bucket: awsConfig.bucket,
+          Delete: {
+            Objects: chunk.map((Key) => ({ Key })),
+            Quiet: true,
+          },
+        })
+      );
+
+      deletedCount += chunk.length - (result.Errors?.length ?? 0);
+
+      if (result.Errors?.length) {
+        const failedKeys = result.Errors.map((error) => error.Key).filter(Boolean).join(", ");
+        throw new Error(`Failed to delete S3 objects under ${prefix}: ${failedKeys}`);
+      }
+    }
+
+    continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return deletedCount;
 }
