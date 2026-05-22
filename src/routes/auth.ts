@@ -14,20 +14,7 @@ import { PlanKey } from "../models/PlanModel";
 const router = Router();
 const ONE_DAY_SEC = 24 * 60 * 60;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
-const baseUrl = (config.baseUrl ?? '').replace(/\/$/, '');
-const port = (config.port ?? 3000);
-const apiBaseUrl = (() => {
-  if (!baseUrl) return '';
-  try {
-    const url = new URL(baseUrl);
-    if (!url.port && port) {
-      url.port = String(port);
-    }
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return `${baseUrl}:${port}`.replace(/\/$/, '');
-  }
-})();
+const frontendUrl = (config.frontendUrl ?? '').replace(/\/$/, '');
 
 // --- helper to sign HS256 JWT ---
 async function signJwt(payload: Record<string, any>, expSeconds = ONE_DAY_SEC): Promise<{ token: string; exp: number }> {
@@ -105,7 +92,7 @@ router.post("/register", async (req: Request, res: Response) => {
       }
     }
 
-    const verificationLink = `${apiBaseUrl}/api/auth/verify-email?token=${token}`;
+    const verificationLink = `${frontendUrl}/verifyEmail?token=${token}`;
     await sendVerificationEmail(email!, verificationLink);
 
     return res.json({ status: "success", message: "User created", data: { userId: user.userId, userName: user.userName } });
@@ -114,17 +101,21 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * verify user email
- * GET /auth/verify-email
- * body: { token }
- */
-router.get("/verify-email", async (req: Request, res: Response) => {
+async function verifyEmail(req: Request, res: Response) {
   try {
-    const { token } = req.query;
+    const token = typeof req.query.token === "string"
+      ? req.query.token
+      : typeof req.body?.token === "string"
+        ? req.body.token
+        : undefined;
+
+    if (!token) {
+      return res.status(400).json({ message: 'token is required' });
+    }
+
     const user = await UserModel.findOne({ verificationToken: token });
 
-    if (!user || user.verificationTokenExpires < new Date()) {
+    if (!user || !user.verificationTokenExpires || user.verificationTokenExpires < new Date()) {
       return res.status(400).json({ message: 'Invalid or expired token' });
     }
 
@@ -140,7 +131,15 @@ router.get("/verify-email", async (req: Request, res: Response) => {
   } catch (err: any) {
     return res.status(500).json({ status: "error", message: err?.message || "Verify email failed" });
   }
-});
+}
+
+/**
+ * verify user email
+ * GET/POST /auth/verify-email
+ * query/body: { token }
+ */
+router.get("/verify-email", verifyEmail);
+router.post("/verify-email", verifyEmail);
 
 /**
  * resend user email
@@ -164,7 +163,7 @@ router.post("/resend-email-verification", async (req: Request, res: Response) =>
     user.verificationTokenExpires = expires;
     await user.save();
 
-    const verificationLink = `${apiBaseUrl}/api/auth/verify-email?token=${token}`;
+    const verificationLink = `${frontendUrl}/verifyEmail?token=${token}`;
     await sendVerificationEmail(user.email, verificationLink);
 
     return res.json({ message: 'Doğrulama e-postası tekrar gönderildi.' });

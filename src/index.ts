@@ -16,7 +16,7 @@ async function bootstrap() {
   const PORT = config.port;
 
   app.use(express.json());
-  app.use('/api/auth', authApiRateLimiter, appRoutes);
+  app.use('/api/auth', authApiRateLimiter);
   app.use('/api', apiRateLimiter, appRoutes);
 
   app.listen(PORT, () => {
