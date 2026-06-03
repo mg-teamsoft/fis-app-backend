@@ -6,6 +6,7 @@ import { writeReceiptToS3WithMonthlySheets } from '../services/excelWriterWithEx
 import { listUserExcelFiles, presignExcelGetUrl } from '../services/excelWriterService';
 import { mapReceiptDataToReceiptModel } from '../utils/receiptMapper';
 import { createReceiptInternal } from '../controllers/receiptController';
+import { validateByUserId } from '../utils/rulesValidator';
 
 const router = Router();
 
@@ -13,7 +14,12 @@ const router = Router();
  * @swagger
  * /excel/write:
  *   post:
- *     summary: Append a parsed receipt into the user Excel workbook (S3)
+ *     summary: Append a parsed receipt to the current user's Excel workbook
+ *     description: >
+ *       Creates a receipt record from the parsed receipt payload, appends the same
+ *       receipt to the authenticated user's monthly Excel sheet in S3, and returns
+ *       a presigned download URL for the workbook. The `receiptJson` field can be
+ *       sent either as a JSON object or as a JSON-stringified ReceiptData payload.
  *     tags: [Excel]
  *     security:
  *       - bearerAuth: []
@@ -23,18 +29,66 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - receiptJson
  *             properties:
  *               key:
  *                 type: string
- *                 description: Optional source key of the file being written
+ *                 description: Optional source S3 key for the receipt image/file.
+ *                 example: uploads/64f1b9c2/receipt-2026-06-03.jpg
  *               receiptJson:
+ *                 description: Parsed receipt data. At least one of `businessName`, `totalAmount`, or `kdvAmount` must be present.
  *                 oneOf:
  *                   - $ref: '#/components/schemas/ReceiptData'
  *                   - type: string
  *                     description: JSON stringified ReceiptData
+ *             example:
+ *               key: uploads/64f1b9c2/receipt-2026-06-03.jpg
+ *               receiptJson:
+ *                 businessName: ACME Market
+ *                 businessTaxNo: "1234567890"
+ *                 transactionDate: "03.06.2026"
+ *                 receiptNumber: FIS-20260603-001
+ *                 products:
+ *                   - name: Coffee
+ *                     quantity: 2
+ *                     unitPrice: 45
+ *                     lineTotal: 90
+ *                 kdvAmount: 15
+ *                 totalAmount: 90
+ *                 transactionType:
+ *                   type: purchase
+ *                   kdvRate: 20
+ *                 paymentType: credit_card
+ *           examples:
+ *             receiptObject:
+ *               summary: ReceiptData object
+ *               value:
+ *                 key: uploads/64f1b9c2/receipt-2026-06-03.jpg
+ *                 receiptJson:
+ *                   businessName: ACME Market
+ *                   businessTaxNo: "1234567890"
+ *                   transactionDate: "03.06.2026"
+ *                   receiptNumber: FIS-20260603-001
+ *                   products:
+ *                     - name: Coffee
+ *                       quantity: 2
+ *                       unitPrice: 45
+ *                       lineTotal: 90
+ *                   kdvAmount: 15
+ *                   totalAmount: 90
+ *                   transactionType:
+ *                     type: purchase
+ *                     kdvRate: 20
+ *                   paymentType: credit_card
+ *             receiptJsonString:
+ *               summary: JSON-stringified ReceiptData
+ *               value:
+ *                 key: uploads/64f1b9c2/receipt-2026-06-03.jpg
+ *                 receiptJson: '{"businessName":"ACME Market","businessTaxNo":"1234567890","transactionDate":"03.06.2026","receiptNumber":"FIS-20260603-001","products":[{"name":"Coffee","quantity":2,"unitPrice":45,"lineTotal":90}],"kdvAmount":15,"totalAmount":90,"transactionType":{"type":"purchase","kdvRate":20},"paymentType":"credit_card"}'
  *     responses:
  *       200:
- *         description: Receipt appended to Excel
+ *         description: Receipt saved and appended to Excel
  *         content:
  *           application/json:
  *             schema:
@@ -42,14 +96,50 @@ const router = Router();
  *               properties:
  *                 status:
  *                   type: string
+ *                   example: success
  *                 message:
  *                   type: string
+ *                   example: Satır eklendi.
  *                 filePath:
  *                   type: string
+ *                   format: uri
+ *                   description: Presigned workbook download URL.
+ *                 sheet:
+ *                   type: string
+ *                   description: Monthly worksheet name that received the new row.
+ *                   example: Haziran 26
+ *                 row:
+ *                   type: integer
+ *                   description: Row number appended in the worksheet.
+ *                   example: 4
  *       400:
  *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: Missing key fields (e.g., businessName or amounts).
+ *       401:
+ *         description: Unauthorized
  *       500:
  *         description: Write failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: Failed to write Excel
  */
 router.post('/write',
   auditInterceptor("FILE_WRITE"),
@@ -95,6 +185,25 @@ router.post('/write',
       return res.status(400).json({
         status: 'error',
         message: 'Missing key fields (e.g., businessName or amounts).',
+      });
+    }
+
+    const ruleCheck = await validateByUserId(userId, payload);
+    if (!ruleCheck.ok) {
+      res.locals.auditMessage = ruleCheck.reason;
+      res.locals.auditPayload = {
+        userId,
+        ruleViolation: ruleCheck.reason,
+        preview: {
+          businessName: payload.businessName,
+          transactionDate: payload.transactionDate,
+          totalAmount: payload.totalAmount,
+          transactionType: payload.transactionType?.type ?? null,
+        },
+      };
+      return res.status(200).json({
+        status: 'error',
+        message: ruleCheck.reason,
       });
     }
 
