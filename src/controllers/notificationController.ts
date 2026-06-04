@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { NotificationModel } from "../models/NotificationModel";
 import { NotificationUserStateModel } from "../models/NotificationUserStateModel";
 import { JwtUtil } from "../utils/jwtUtil";
+import { v4 as uuidv4 } from "uuid";
+import { UserModel } from "../models/User";
+import { normalizeEmail } from "../utils/normalizeUtil";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -36,11 +39,7 @@ function parsePositiveInteger(value: unknown, fallback: number) {
 
 function buildNotificationVisibilityQuery(userId: string) {
   return {
-    $or: [
-      { userId },
-      { userId: { $exists: false } },
-      { userId: null },
-    ],
+    $or: [{ userId }, { userId: { $exists: false } }, { userId: null }],
   };
 }
 
@@ -52,7 +51,10 @@ export async function listNotifications(req: Request, res: Response) {
     }
 
     const page = parsePositiveInteger(req.query.page, DEFAULT_PAGE);
-    const limit = Math.min(parsePositiveInteger(req.query.limit, DEFAULT_LIMIT), MAX_LIMIT);
+    const limit = Math.min(
+      parsePositiveInteger(req.query.limit, DEFAULT_LIMIT),
+      MAX_LIMIT,
+    );
     const skip = (page - 1) * limit;
     const visibilityQuery = buildNotificationVisibilityQuery(userId);
 
@@ -65,17 +67,23 @@ export async function listNotifications(req: Request, res: Response) {
         .lean(),
     ]);
     const typedNotifications = notifications as NotificationListItem[];
-    const notificationIds = typedNotifications.map((notification) => notification.notificationId);
-    const readStates = notificationIds.length > 0
-      ? await NotificationUserStateModel.find({
-        userId,
-        notificationId: { $in: notificationIds },
-      }).lean()
-      : [];
+    const notificationIds = typedNotifications.map(
+      (notification) => notification.notificationId,
+    );
+    const readStates =
+      notificationIds.length > 0
+        ? await NotificationUserStateModel.find({
+            userId,
+            notificationId: { $in: notificationIds },
+          }).lean()
+        : [];
     const readStateMap = new Map(
       (readStates as NotificationUserStateListItem[]).map(
-        (state: NotificationUserStateListItem) => [state.notificationId, state.isUnread]
-      )
+        (state: NotificationUserStateListItem) => [
+          state.notificationId,
+          state.isUnread,
+        ],
+      ),
     );
 
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
@@ -154,7 +162,7 @@ export async function createPrivateNotification(data: {
   title: string;
   subtitle: string;
   screen?: string;
-  actionType?: string,
+  actionType?: string;
   content?: string;
   time: string;
 }) {
@@ -177,13 +185,17 @@ export async function insertReadNotifications(req: Request, res: Response) {
     const body = req.body ?? {};
     const notificationIds = Array.isArray(body.notificationIds)
       ? body.notificationIds
-      : (body.notificationId ? [body.notificationId] : []);
+      : body.notificationId
+        ? [body.notificationId]
+        : [];
 
-    const normalizedNotificationIds = [...new Set(
-      notificationIds
-        .map((notificationId: unknown) => String(notificationId ?? "").trim())
-        .filter(Boolean)
-    )];
+    const normalizedNotificationIds = [
+      ...new Set(
+        notificationIds
+          .map((notificationId: unknown) => String(notificationId ?? "").trim())
+          .filter(Boolean),
+      ),
+    ];
 
     if (normalizedNotificationIds.length === 0) {
       return res.status(400).json({
@@ -199,7 +211,7 @@ export async function insertReadNotifications(req: Request, res: Response) {
       .lean();
 
     const existingNotificationIds = existingNotifications.map(
-      (notification: { notificationId: string }) => notification.notificationId
+      (notification: { notificationId: string }) => notification.notificationId,
     );
 
     if (existingNotificationIds.length === 0) {
@@ -218,7 +230,7 @@ export async function insertReadNotifications(req: Request, res: Response) {
           },
           upsert: true,
         },
-      }))
+      })),
     );
 
     res.locals.auditPayload = {
@@ -234,6 +246,74 @@ export async function insertReadNotifications(req: Request, res: Response) {
   } catch (error: any) {
     return res.status(500).json({
       message: "Failed to insert read notifications.",
+      error: error?.message,
+    });
+  }
+}
+
+export async function createExcelUpdateNotification(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const { userId } = await JwtUtil.extractUser(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { managerEmail, inviteeEmail } = req.body ?? {};
+    const targetEmail = managerEmail || inviteeEmail;
+
+    if (!targetEmail || typeof targetEmail !== "string") {
+      return res.status(400).json({ message: "managerEmail is required." });
+    }
+
+    const normalizedManagerEmail = normalizeEmail(targetEmail);
+
+    const user = await UserModel.findOne({ userId }).select("userName email").lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if ((user.email ?? "").toLowerCase() === normalizedManagerEmail) {
+      return res.status(400).json({ message: "You cannot notify yourself." });
+    }
+
+    const manager = await UserModel.findOne({
+      email: normalizedManagerEmail,
+    })
+      .select("userId")
+      .lean();
+    if (!manager) {
+      return res.status(404).json({ message: "Manager user not found." });
+    }
+
+    const notificationId = `notif_${uuidv4()}`;
+
+    const notifResult = await createPrivateNotification({
+      userId: manager.userId,
+      notificationId: notificationId,
+      title: `${user.userName} Excel Güncellemesi `,
+      subtitle: `${user.userName} excel dosyasında değişiklik yaptı ve size bu durumu bildirmek istedi`,
+      actionType: "EXCEL_UPDATE",
+      screen: "/excelFiles",
+      content: "Bildirime tıklayarak ilgili excel dosyasına gidebilirsiniz.",
+      time: "Şimdi",
+    });
+
+    res.locals.auditPayload = {
+      managerEmail: normalizedManagerEmail,
+      notificationId,
+    };
+    res.locals.auditMessage = "Excel update notification sent";
+
+    return res.status(201).json({
+      message: "Notification sent successfully.",
+      notification: notifResult,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Failed to send excel update notification.",
       error: error?.message,
     });
   }

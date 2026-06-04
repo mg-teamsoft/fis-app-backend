@@ -32,6 +32,7 @@ export const AUDIT_ACTIONS = [
   "CONTACT_INVITE_CREATE",
   "NOTIFICATION_LIST",
   "NOTIFICATION_READ_INSERT",
+  "NOTIFICATION_EXCEL_UPDATE",
 ] as const;
 
 export type AuditAction = typeof AUDIT_ACTIONS[number];
