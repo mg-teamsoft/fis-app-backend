@@ -37,6 +37,16 @@ function parsePositiveInteger(value: unknown, fallback: number) {
   return parsed;
 }
 
+function formatNotificationTime(date: Date) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
 function buildNotificationVisibilityQuery(userId: string) {
   return {
     $or: [{ userId }, { userId: { $exists: false } }, { userId: null }],
@@ -298,7 +308,7 @@ export async function createExcelUpdateNotification(
       actionType: "EXCEL_UPDATE",
       screen: "/excelFiles",
       content: "Bildirime tıklayarak ilgili excel dosyasına gidebilirsiniz.",
-      time: "Şimdi",
+      time: formatNotificationTime(new Date()),
     });
 
     res.locals.auditPayload = {
