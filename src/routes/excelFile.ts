@@ -4,7 +4,7 @@ import { auditInterceptor } from '../middleware/auditInterceptor';
 import { JwtUtil } from '../utils/jwtUtil';
 import { writeReceiptToS3WithMonthlySheets } from '../services/excelWriterWithExcelJs';
 import { listUserExcelFiles, presignExcelGetUrl } from '../services/excelWriterService';
-import { mapReceiptDataToReceiptModel } from '../utils/receiptMapper';
+import { mapReceiptDataToReceiptModel, normalizeReceiptDataPayload } from '../utils/receiptMapper';
 import { createReceiptInternal } from '../controllers/receiptController';
 import { validateByUserId } from '../utils/rulesValidator';
 
@@ -164,6 +164,10 @@ router.post('/write',
       }
     } else {
       payload = rawReceipt;
+    }
+
+    if (payload) {
+      payload = normalizeReceiptDataPayload(payload);
     }
 
     if (!payload && rawReceipt) {

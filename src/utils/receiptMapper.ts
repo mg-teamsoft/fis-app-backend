@@ -1,22 +1,71 @@
 import { ReceiptData } from "../types/receiptTypes";
 
+type ReceiptPayload =
+  | ReceiptData
+  | {
+      receipt?: ReceiptData | null;
+      receipts?: ReceiptData | ReceiptData[] | null;
+      job?: {
+        receipt?: ReceiptData | null;
+        receipts?: ReceiptData | ReceiptData[] | null;
+      } | null;
+      jobs?: {
+        receipt?: ReceiptData | null;
+        receipts?: ReceiptData | ReceiptData[] | null;
+      } | null;
+    };
+
+export function normalizeReceiptDataPayload(data: ReceiptPayload): ReceiptData {
+  const source: any = data;
+  const candidate =
+    source?.receipts ??
+    source?.receipt ??
+    source?.job?.receipts ??
+    source?.job?.receipt ??
+    source?.jobs?.receipts ??
+    source?.jobs?.receipt ??
+    source;
+
+  return (Array.isArray(candidate) ? candidate[0] : candidate) as ReceiptData;
+}
+
+function toNumberOrFallback(value: unknown, fallback = 0): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+  if (typeof value !== "string") return fallback;
+
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+
+  const normalized = trimmed.replace(/\./g, "").replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export function mapKdvAmountToVatAmount(data: ReceiptPayload): number | undefined {
+  const receipt = normalizeReceiptDataPayload(data);
+  if (receipt?.kdvAmount === null || receipt?.kdvAmount === undefined) return undefined;
+  return toNumberOrFallback(receipt.kdvAmount);
+}
+
 export function mapReceiptDataToReceiptModel(
-  data: ReceiptData,
+  data: ReceiptPayload,
   userId: string,
   imageUrl: string,
   sourceKey?: string
 ) {
+  const receipt = normalizeReceiptDataPayload(data);
+
   return {
     userId,
-    businessName: data.businessName ?? "Bilinmeyen Şirket",
-    businessTaxNo: data.businessTaxNo ?? undefined,
-    receiptNumber: data.receiptNumber ?? "Bilinmiyor",
-    totalAmount: data.totalAmount ?? 0,
-    vatAmount: data.kdvAmount ?? 0,
-    vatRate: data.transactionType?.kdvRate ?? 0,
-    transactionDate: parseTransactionDate(data.transactionDate) ?? new Date(),
-    transactionType: data.transactionType?.type ?? "Bilinmiyor",
-    paymentType: data.paymentType ?? "Bilinmiyor",
+    businessName: receipt.businessName ?? "Bilinmeyen Şirket",
+    businessTaxNo: receipt.businessTaxNo ?? undefined,
+    receiptNumber: receipt.receiptNumber ?? "Bilinmiyor",
+    totalAmount: toNumberOrFallback(receipt.totalAmount),
+    vatAmount: mapKdvAmountToVatAmount(receipt) ?? 0,
+    vatRate: toNumberOrFallback(receipt.transactionType?.kdvRate),
+    transactionDate: parseTransactionDate(receipt.transactionDate) ?? new Date(),
+    transactionType: receipt.transactionType?.type ?? "Bilinmiyor",
+    paymentType: receipt.paymentType ?? "Bilinmiyor",
     imageUrl,
     sourceKey,
   };

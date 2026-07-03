@@ -7,6 +7,8 @@ import { monthNameTr } from '../utils/dateUtil';
 import { ReceiptDataListItem } from '../types/receiptTypes';
 import { createPresignedGetUrl } from '../services/s3Service';
 import { consumeQuota } from '../utils/consumeQuota';
+import { mapKdvAmountToVatAmount, mapReceiptDataToReceiptModel } from '../utils/receiptMapper';
+import { JobModel } from '../models/JobModel';
 
 type CreateReceiptOptions = {
     bodyOverride?: Record<string, any>;
@@ -26,10 +28,37 @@ export async function createReceiptInternal(req: Request, options?: CreateReceip
             return { ok: false, status: 401, body: { message: 'Unauthorized' } };
         }
 
+        const incomingBody = options?.bodyOverride ?? req.body;
+        const mappedVatAmount = mapKdvAmountToVatAmount(incomingBody);
+        const mappedReceipt = mappedVatAmount === undefined
+            ? incomingBody
+            : mapReceiptDataToReceiptModel(
+                incomingBody,
+                userId,
+                incomingBody?.imageUrl ?? '',
+                incomingBody?.sourceKey
+            );
         const receiptBody = {
-            ...(options?.bodyOverride ?? req.body),
+            ...mappedReceipt,
             userId,
         };
+
+        // The client may send a receipt-model payload with vatAmount=0 even though
+        // the OCR job has a valid kdvAmount. Use the job tied to the image as the
+        // authoritative fallback instead of losing VAT during client conversion.
+        if (receiptBody.sourceKey && (!Number.isFinite(Number(receiptBody.vatAmount)) || Number(receiptBody.vatAmount) <= 0)) {
+            const sourceJob = await JobModel.findOne(
+                { userId, sourceKey: receiptBody.sourceKey, status: 'done' },
+                { receipt: 1 }
+            ).lean();
+            const jobVatAmount = sourceJob?.receipt
+                ? mapKdvAmountToVatAmount(sourceJob.receipt)
+                : undefined;
+
+            if (jobVatAmount !== undefined && jobVatAmount > 0) {
+                receiptBody.vatAmount = jobVatAmount;
+            }
+        }
 
         if (receiptBody.transactionDate) {
             const incomingDate = receiptBody.transactionDate;
