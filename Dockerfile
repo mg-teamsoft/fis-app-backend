@@ -37,7 +37,7 @@ EXPOSE 3000
 
 # Healthcheck (assumes /health-me endpoint exists)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD curl --fail http://localhost:3000/health-me || exit 1
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health-me', {signal: AbortSignal.timeout(5000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Start the app
 CMD ["node", "dist/index.js"]
