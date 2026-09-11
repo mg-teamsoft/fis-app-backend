@@ -1,8 +1,9 @@
 import OpenAI from "openai";
+import { traceOpenAiCall, tracedOpenAiFetch } from "../utils/openAiTelemetry";
 import { ReceiptData } from "../types/receiptTypes";
 import { parseCurrency, parsePercent } from "../utils/parserHelpers";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: tracedOpenAiFetch });
 const openAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 function toNullableString(value: unknown): string | null {
@@ -11,7 +12,7 @@ function toNullableString(value: unknown): string | null {
   return normalized ? normalized : null;
 }
 
-export async function extractReceiptWithOpenAI(lines: string[]): Promise<ReceiptData> {
+export async function extractReceiptWithOpenAI(lines: string[], context: { jobId?: string; fileId?: string } = {}): Promise<ReceiptData> {
   console.log('extractedData from OpenAI');
 
   const text = lines.join("\n");
@@ -32,12 +33,13 @@ Metin:
 ${text}
 `;
 
-  console.log('OpenAI Prompt is ', prompt);
 
-  const completion = await openai.responses.create({
+  const completion = await traceOpenAiCall({
+    api: "responses", model: openAiModel, lines, prompt, ...context,
+  }, () => openai.responses.create({
     model: openAiModel,
     input: prompt
-  });
+  }));
 
   let raw = completion.output_text.trim();
 

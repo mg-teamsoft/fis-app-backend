@@ -1,6 +1,7 @@
 // npm i openai zod
 import 'dotenv/config';
 import OpenAI from "openai";
+import { traceOpenAiCall, tracedOpenAiFetch } from "../utils/openAiTelemetry";
 import { z } from "zod";
 
 export type ParsedReceipt = {
@@ -29,7 +30,7 @@ const ReceiptSchema = z.object({
   odemeTuru: z.string().nullable(),
 });
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY!, fetch: tracedOpenAiFetch });
 const openAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 export async function extractReceiptWithOpenAIOld(lines: string[]): Promise<ParsedReceipt> {
@@ -40,7 +41,10 @@ export async function extractReceiptWithOpenAIOld(lines: string[]): Promise<Pars
     'Alanlar: firmaAd, fisNo, tutar, kdv, kdvOran, islemTarihi, islemTuru, odemeTuru. ' +
     'Rakam formatını KORU: "2.129,00" / "193,55". KDV oranını "%10" gibi döndür. Emin değilsen null kullan.';
 
-  const completion = await client.chat.completions.create({
+  const completion = await traceOpenAiCall({
+    api: "chat.completions", model: openAiModel, lines,
+    prompt: system + `Metin (satırlar):\n${text}`,
+  }, () => client.chat.completions.create({
     model: openAiModel,
     temperature: 0,
     response_format: { type: "json_object" }, // ✅ JSON mode works on 5.12.2
@@ -48,7 +52,7 @@ export async function extractReceiptWithOpenAIOld(lines: string[]): Promise<Pars
       { role: "system", content: system },
       { role: "user", content: `Metin (satırlar):\n${text}` },
     ],
-  });
+  }));
 
   const content = completion.choices[0]?.message?.content ?? "{}";
   let parsed: ParsedReceipt;

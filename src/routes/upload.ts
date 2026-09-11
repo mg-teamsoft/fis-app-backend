@@ -87,7 +87,7 @@ router.post('/upload',
         console.log(lines);
 
         // `lines` = your AWS Textract lines (string[])
-        let extractedData = await extractReceiptWithOpenAI(lines);
+        let extractedData = await extractReceiptWithOpenAI(lines, { fileId: file.filename });
         console.log('extractedData from OpenAI Prompt: ');
         console.log(extractedData);
 

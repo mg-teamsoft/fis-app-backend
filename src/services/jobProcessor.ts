@@ -52,7 +52,7 @@ export async function startJobFromBuffer(params: BufferJobParams) {
         const lines = await extractTextFromImage(tmpPath);
 
         // 5) extract with OpenAI
-        extractedData = await extractReceiptWithOpenAI(lines);
+        extractedData = await extractReceiptWithOpenAI(lines, { jobId });
       }
 
       // rows.push([date || '', '', description || '', '', '', '', '', '', '', total || '', '', '', '']);

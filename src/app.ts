@@ -27,7 +27,10 @@ import supervisorRoutes from './routes/supervisorRoutes';
 import config from './configs/config';
 import { resumePendingAccountDeletionJobs } from './services/accountDeletionService';
 
+import { openAiRequestTracing } from './utils/openAiTelemetry';
+
 const app = express();
+app.use(openAiRequestTracing);
 const allowedOrigins = [
   config.frontendUrl,
 ];
