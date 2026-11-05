@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { getObjectBuffer } from "../services/s3Service";
-import { startJobFromBuffer } from "../services/jobProcessor"; // add function below
+import { startJobFromKey } from "../services/jobProcessor";
 import { JwtUtil } from "../utils/jwtUtil";
 import { requireVerifiedEmail } from "../middleware/requireVerifiedEmail";
 import { checkImageQuota } from "../middleware/checkQuota";
@@ -56,15 +55,10 @@ router.post("/by-key", requireVerifiedEmail, checkImageQuota, async (req, res) =
     const { key, mime } = req.body || {};
     if (!key) return res.status(400).json({ status: "error", message: "key required" });
 
-    // 1) Write to a buffer
-    const buffer = await getObjectBuffer(key);
-
-    // Kick off your existing pipeline using the buffer
-    const job = await startJobFromBuffer({
+    const job = await startJobFromKey({
       userId,
       sourceKey: key,
       mime: mime || "image/jpeg",
-      buffer,
     });
 
     res.json({ status: "success", jobId: job.jobId, message: "processing started" });

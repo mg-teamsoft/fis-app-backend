@@ -5,6 +5,7 @@ const config = {
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   baseUrl: process.env.BASE_URL || 'http://localhost',
   port: parseInt(process.env.PORT || '3000', 10),
+  jobConcurrency: Number(process.env.JOB_CONCURRENCY ?? 2),
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   outputDir: process.env.OUTPUT_DIR || 'output',
   defaultLang: process.env.OCR_LANG || 'tur+eng',

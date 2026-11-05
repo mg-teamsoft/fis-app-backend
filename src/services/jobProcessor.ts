@@ -1,84 +1,57 @@
-// src/services/jobProcessor.ts
+import { performance } from 'node:perf_hooks';
 import config from '../configs/config';
-import { writeFile, unlink } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import runPythonOCR from './tesseractRunner';
-import { parseReceiptLines } from '../utils/receiptParser';
 import { checkAnomaly } from '../utils/checkAnomaly';
-import { extractTextFromImage } from './awsTextractService';
+import { extractTextFromBuffer } from './awsTextractService';
 import { extractReceiptWithOpenAI } from './openaiToReceiptDataService';
+import { getObjectBuffer } from './s3Service';
 import { JobModel } from '../models/JobModel';
 import { randomUuid } from '../utils/cryptoUtil';
+import { JobQueue } from './jobQueue';
 
+const queue = new JobQueue(config.jobConcurrency);
 
-type BufferJobParams = {
-  userId: string;
-  sourceKey: string; // S3 key
-  mime: string;
-  buffer: Buffer;
-};
+type JobParams = { userId: string; sourceKey: string; mime: string };
+type BufferJobParams = JobParams & { buffer: Buffer };
 
-export async function startJobFromBuffer(params: BufferJobParams) {
+async function startJob(params: JobParams, load: () => Promise<Buffer>) {
+  const started = performance.now();
   const jobId = randomUuid();
-
-  // You might want to persist a "job" doc in DB here with status = "queued"
-  await JobModel.create({
-    jobId,
-    userId: params.userId,
-    sourceKey: params.sourceKey,
-    status: "queued",
-    createdAt: new Date(),
-  });
-
-  // Fire & forget (or queue it in Bull/Rabbit/etc)
-  process.nextTick(async () => {
-    let tmpPath;
+  await JobModel.create({ jobId, userId: params.userId, sourceKey: params.sourceKey, status: 'queued' });
+  queue.add(async () => {
+    const timings: Record<string, number> = { queueMs: performance.now() - started };
+    let stage = 'processing';
+    async function measure<T>(name: string, operation: () => Promise<T>): Promise<T> {
+      stage = name;
+      const stepStarted = performance.now();
+      try { return await operation(); }
+      finally { timings[`${name}Ms`] = performance.now() - stepStarted; }
+    }
     try {
-      tmpPath = join(tmpdir(), `${randomUuid()}.jpg`);
-      await writeFile(tmpPath, params.buffer);
-
-      // 1) OCR (Tesseract, Cloud Vision, or Textract)
-      const text = await runPythonOCR(tmpPath, config.defaultLang);
-      // 2) Parse values
-      console.log('extractedData from offline OCR: ');
-      let extractedData = parseReceiptLines(text);
-
-      // 3) chcek anomaly
-      if (checkAnomaly(extractedData)) {
-        console.warn(`Anomaly detected in ${tmpPath}.`);
-
-        // 4) Retry with AWS Textract
-        const lines = await extractTextFromImage(tmpPath);
-
-        // 5) extract with OpenAI
-        extractedData = await extractReceiptWithOpenAI(lines, { jobId });
-      }
-
-      // rows.push([date || '', '', description || '', '', '', '', '', '', '', total || '', '', '', '']);
-      if (tmpPath) {
-        await unlink(tmpPath).catch(() => { });
-      }
-      console.log('extractedData final: ', extractedData);
-
+      await JobModel.updateOne({ jobId }, { status: 'processing' });
+      const buffer = await measure('s3', load);
+      const lines = await measure('textract', () => extractTextFromBuffer(buffer));
+      const receipt = await measure('openai', () => extractReceiptWithOpenAI(lines, { jobId }));
+      stage = 'anomaly';
+      const needsReview = checkAnomaly(receipt);
+      stage = 'persist';
       await JobModel.updateOne({ jobId }, {
-        status: "done",
-        receipt: extractedData,
-        finishedAt: new Date(),
+        status: 'done', receipt, needsReview, finishedAt: new Date(),
       });
-      console.log('finished processing file: ', tmpPath);
-      // await jobsRepo.update(jobId, { status: "done", receipt, finishedAt: new Date() });
-    } catch (err: any) {
-      if (tmpPath) {
-        await unlink(tmpPath).catch(() => { });
-      }
-      await JobModel.updateOne({ jobId }, {
-        status: "error",
-        error: err.message,
-      });      // Log error
-      console.error("Job error:", jobId, err);
+      console.log(JSON.stringify({ event: 'job.completed', jobId, needsReview, ...timings, totalMs: performance.now() - started }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(JSON.stringify({ event: 'job.failed', jobId, stage, error: message, ...timings, totalMs: performance.now() - started }));
+      await JobModel.updateOne({ jobId }, { status: 'error', error: message, finishedAt: new Date() });
     }
   });
   return { jobId };
+}
 
+export function startJobFromKey(params: JobParams) {
+  return startJob(params, () => getObjectBuffer(params.sourceKey));
+}
+
+// Retained for callers that already have the image in memory.
+export function startJobFromBuffer(params: BufferJobParams) {
+  return startJob(params, async () => params.buffer);
 }

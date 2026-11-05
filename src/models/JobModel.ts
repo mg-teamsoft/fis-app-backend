@@ -6,6 +6,7 @@ export interface JobDoc extends Document {
   sourceKey: string;      // S3 key of the uploaded file
   status: "queued" | "processing" | "done" | "error";
   receipt?: any;          // parsed receipt JSON (optional)
+  needsReview?: boolean; // absent until validation completes (or on legacy jobs)
   error?: string;         // error message if status=error
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +24,7 @@ const jobSchema = new Schema<JobDoc>(
       default: "queued",
     },
     receipt: { type: Schema.Types.Mixed },   // can hold JSON object
+    needsReview: { type: Boolean },
     error: { type: String },
     finishedAt: { type: Date },
   },

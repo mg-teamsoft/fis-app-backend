@@ -53,6 +53,7 @@ router.get("/:jobId", async (req: Request, res: Response) => {
         userId: job.userId,
         sourceKey: job.sourceKey,
         status: job.status,
+        needsReview: job.needsReview ?? null,
         receipt: job.receipt ?? null,
         error: job.error ?? null,
         createdAt: job.createdAt,
@@ -142,6 +143,7 @@ router.get("/", async (req: Request, res: Response) => {
         userId: j.userId,
         sourceKey: j.sourceKey,
         status: j.status,
+        needsReview: j.needsReview ?? null,
         // omit receipt by default in list for payload size; fetch via /:jobId or /:jobId/receipt
         createdAt: j.createdAt,
         updatedAt: j.updatedAt,
@@ -180,6 +182,9 @@ router.get("/", async (req: Request, res: Response) => {
  *                 receipt:
  *                   $ref: '#/components/schemas/ReceiptData'
  *                   nullable: true
+ *                 needsReview:
+ *                   type: boolean
+ *                   nullable: true
  *                 message:
  *                   type: string
  *       404:
@@ -192,14 +197,14 @@ router.get("/:jobId/receipt", async (req: Request, res: Response) => {
     const { userId: userId, fullname: userName } = await JwtUtil.extractUser(req);
     const { jobId } = req.params;
 
-    const job = await JobModel.findOne({ jobId, userId }, { receipt: 1, status: 1 });
+    const job = await JobModel.findOne({ jobId, userId }, { receipt: 1, status: 1, needsReview: 1 });
     if (!job) {
       return res.status(404).json({ status: "error", message: "Job not found" });
     }
     if (!job.receipt) {
-      return res.json({ status: "success", receipt: null, message: `No receipt yet (status: ${job.status})` });
+      return res.json({ status: "success", receipt: null, needsReview: job.needsReview ?? null, message: `No receipt yet (status: ${job.status})` });
     }
-    return res.json({ status: "success", receipt: job.receipt });
+    return res.json({ status: "success", receipt: job.receipt, needsReview: job.needsReview ?? null });
   } catch (e: any) {
     return res.status(500).json({ status: "error", message: e.message || "Failed to get receipt" });
   }

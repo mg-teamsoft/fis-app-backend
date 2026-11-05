@@ -95,3 +95,26 @@ than 30 days. The cutoff day is retained in full. Cleanup only targets regular
 symlinks are left untouched. If there are no new writes, cleanup waits until the
 next write. Cleanup failures are logged and retried the next day or restart.
 This retention does not manage Docker/stdout log storage.
+
+### Receipt job processing
+
+`POST /upload/by-key` queues the S3 key. Each job downloads the frontend-prepared
+JPEG, sends its bytes to Textract, sends the extracted lines to OpenAI, and checks
+the resulting receipt for anomalies. The job path does not use local OCR or temporary
+files. The existing direct `/image/upload` endpoint retains its separate legacy flow.
+
+Set `JOB_CONCURRENCY` to a positive integer (default: `2`) to limit simultaneous
+jobs per backend process, including S3 downloads. This is an in-memory FIFO queue:
+queued/active jobs are not recovered automatically after restart, and multiple
+replicas each have their own limit. Use a durable queue for restart recovery.
+
+Completed jobs retain `status: "done"` and expose `needsReview`: `true` requires
+manual review, `false` passed the anomaly check, and `null` means not yet checked
+or a legacy job. Frontend consumers should check this field on job detail, list,
+and receipt responses. Anomalies do not automatically trigger another AI call.
+
+Structured `job.completed` / `job.failed` logs include `jobId`, `queueMs`, `s3Ms`,
+`textractMs`, `openaiMs`, and `totalMs` for stages reached. Total time starts before
+job creation and includes queue wait and S3 download; failure logs identify the
+failed stage. Compare p50/p95 and receipt accuracy on the same sample set to assess
+the speed improvement; a 50% reduction is not guaranteed.
