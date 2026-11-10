@@ -1,3 +1,4 @@
+import releaseNotificationRoutes from "./routes/releaseNotifications";
 import express from 'express';
 import uploadRoutes from './routes/upload';
 import jobRoutes from './routes/jobs';
@@ -67,6 +68,8 @@ app.use("/auth", authRoutes);
 app.use("/plans", publicPlanRoutes);
 app.use("/contacts", publicContactRoutes);
 app.use("/users", publicUserRoutes);
+
+app.use("/internal/release-notifications", releaseNotificationRoutes);
 
 // Secure these route groups
 app.use('/image', requireAuth(), uploadRoutes);

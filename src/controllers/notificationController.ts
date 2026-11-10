@@ -1,3 +1,4 @@
+import { notificationVisibility } from "../utils/notificationDates";
 import { Request, Response } from "express";
 import { NotificationModel } from "../models/NotificationModel";
 import { NotificationUserStateModel } from "../models/NotificationUserStateModel";
@@ -22,6 +23,8 @@ type NotificationListItem = {
   screen?: string;
   createdAt: Date;
   updatedAt: Date;
+  startDate: Date;
+  endDate: Date;
 };
 
 type NotificationUserStateListItem = {
@@ -47,10 +50,10 @@ function formatNotificationTime(date: Date) {
   return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
-function buildNotificationVisibilityQuery(userId: string) {
-  return {
-    $or: [{ userId }, { userId: { $exists: false } }, { userId: null }],
-  };
+async function buildNotificationVisibilityQuery(userId: string) {
+  const user = await UserModel.findOne({ userId }).select("createdAt").lean();
+  if (!user?.createdAt) throw new Error("User registration date not found");
+  return notificationVisibility(userId, new Date(user.createdAt));
 }
 
 export async function listNotifications(req: Request, res: Response) {
@@ -66,7 +69,7 @@ export async function listNotifications(req: Request, res: Response) {
       MAX_LIMIT,
     );
     const skip = (page - 1) * limit;
-    const visibilityQuery = buildNotificationVisibilityQuery(userId);
+    const visibilityQuery = await buildNotificationVisibilityQuery(userId);
 
     const [total, notifications] = await Promise.all([
       NotificationModel.countDocuments(visibilityQuery),
@@ -113,6 +116,8 @@ export async function listNotifications(req: Request, res: Response) {
         subtitle: notification.subtitle,
         content: notification.content ?? "",
         time: notification.time,
+        startDate: notification.startDate,
+        endDate: notification.endDate,
         isUnread: readStateMap.has(notification.notificationId)
           ? readStateMap.get(notification.notificationId)
           : (notification.isUnread ?? true),
@@ -146,6 +151,8 @@ export async function createNotification(data: {
   content?: string;
   time: string;
   isUnread?: boolean;
+  startDate?: Date;
+  endDate?: Date;
 }) {
   return await NotificationModel.create({
     ...data,
@@ -214,7 +221,7 @@ export async function insertReadNotifications(req: Request, res: Response) {
     }
 
     const existingNotifications = await NotificationModel.find({
-      ...buildNotificationVisibilityQuery(userId),
+      ...await buildNotificationVisibilityQuery(userId),
       notificationId: { $in: normalizedNotificationIds },
     })
       .select("notificationId")

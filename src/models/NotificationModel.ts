@@ -1,3 +1,4 @@
+import { nextNotificationMonth } from "../utils/notificationDates";
 import { Document, Schema, model, models } from "mongoose";
 
 export interface NotificationDoc extends Document {
@@ -10,6 +11,8 @@ export interface NotificationDoc extends Document {
   actionType?: string | null;
   screen?: string | null;
   isUnread: boolean;
+  startDate: Date;
+  endDate: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,6 +25,12 @@ const NotificationSchema = new Schema<NotificationDoc>(
     subtitle: { type: String, required: true, trim: true },
     content: { type: String, default: "" },
     time: { type: String, required: true, trim: true },
+    startDate: { type: Date, required: true, default: Date.now },
+    endDate: {
+      type: Date, required: true,
+      default: function(this: NotificationDoc) { return nextNotificationMonth(this.startDate ?? new Date()); },
+      validate: { validator: function(this: NotificationDoc, value: Date) { return value > this.startDate; }, message: 'endDate must be after startDate' },
+    },
     actionType: { type: String, required: false, trim: true },
     screen: { type: String, required: false, trim: true },
     isUnread: { type: Boolean, default: false, index: true },
