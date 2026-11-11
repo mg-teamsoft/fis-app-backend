@@ -1,6 +1,6 @@
 import { notificationVisibility } from "../utils/notificationDates";
 import { Request, Response } from "express";
-import { NotificationModel } from "../models/NotificationModel";
+import { NotificationModel, NotificationCategory } from "../models/NotificationModel";
 import { NotificationUserStateModel } from "../models/NotificationUserStateModel";
 import { JwtUtil } from "../utils/jwtUtil";
 import { v4 as uuidv4 } from "uuid";
@@ -17,6 +17,8 @@ type NotificationListItem = {
   title: string;
   subtitle: string;
   content?: string;
+  version?: string;
+  category?: NotificationCategory;
   time: string;
   isUnread?: boolean;
   actionType?: string;
@@ -24,7 +26,7 @@ type NotificationListItem = {
   createdAt: Date;
   updatedAt: Date;
   startDate: Date;
-  endDate: Date;
+  endDate?: Date;
 };
 
 type NotificationUserStateListItem = {
@@ -118,6 +120,8 @@ export async function listNotifications(req: Request, res: Response) {
         time: notification.time,
         startDate: notification.startDate,
         endDate: notification.endDate,
+        version: notification.version,
+        category: notification.category,
         isUnread: readStateMap.has(notification.notificationId)
           ? readStateMap.get(notification.notificationId)
           : (notification.isUnread ?? true),
@@ -149,6 +153,8 @@ export async function createNotification(data: {
   title: string;
   subtitle: string;
   content?: string;
+  version?: string;
+  category?: NotificationCategory;
   time: string;
   isUnread?: boolean;
   startDate?: Date;
@@ -181,6 +187,8 @@ export async function createPrivateNotification(data: {
   screen?: string;
   actionType?: string;
   content?: string;
+  version?: string;
+  category?: NotificationCategory;
   time: string;
 }) {
   const notification = await createNotification({ ...data, isUnread: true });

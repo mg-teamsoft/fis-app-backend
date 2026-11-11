@@ -88,7 +88,7 @@ app.use("/iap", requireAuth(), iapRoutes);
 app.use("/purchases", requireAuth(), purchaseRoutes);
 app.use("/contacts", requireAuth(), contactRoutes);
 app.use("/supervisor", requireAuth(), supervisorRoutes);
-app.use("/notifications", requireAuth(), notificationRoutes);
+app.use("/notifications", notificationRoutes);
 
 //  Setup Swagger API Docs
 setupSwagger(app);

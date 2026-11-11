@@ -38,6 +38,6 @@ describe('release notifications', () => {
     jest.mocked(NotificationModel.updateOne).mockResolvedValueOnce({ upsertedCount: 1 }).mockResolvedValueOnce({ upsertedCount: 0 });
     expect((await request(app).post('/release').set('Authorization', 'Bearer test-secret').send(payload)).status).toBe(201);
     expect((await request(app).post('/release').set('Authorization', 'Bearer test-secret').send(payload)).body.created).toBe(false);
-    expect(NotificationModel.updateOne).toHaveBeenCalledWith({ notificationId: 'release-1.2.0' }, { $setOnInsert: expect.objectContaining({ userId: null, startDate: expect.any(Date), endDate: expect.any(Date) }) }, expect.objectContaining({ upsert: true, timestamps: false }));
+    expect(NotificationModel.updateOne).toHaveBeenCalledWith({ notificationId: 'release-1.2.0' }, { $setOnInsert: expect.objectContaining({ userId: null, version: '1.2.0', category: 'version', startDate: expect.any(Date), endDate: expect.any(Date) }) }, expect.objectContaining({ upsert: true, timestamps: false }));
   });
 });

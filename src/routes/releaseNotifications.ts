@@ -1,18 +1,10 @@
 import { Router } from 'express';
-import { createHash, timingSafeEqual } from 'node:crypto';
-import config from '../configs/config';
+import { requireNotificationToken } from '../middleware/requireNotificationToken';
 import { NotificationModel } from '../models/NotificationModel';
 import { nextNotificationMonth } from '../utils/notificationDates';
 
 const router = Router();
-router.post('/', async (req, res) => {
-  const secret = config.releaseNotificationToken;
-  if (!secret) return res.status(503).json({ message: 'Release notifications are not configured' });
-  const authorization = req.get('authorization') ?? '';
-  const hash = (value: string) => createHash('sha256').update(value).digest();
-  if (!timingSafeEqual(hash(authorization), hash(`Bearer ${secret}`))) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
+router.post('/', requireNotificationToken, async (req, res) => {
   const { version, title, subtitle, content, startDate, endDate, userId } = req.body ?? {};
   // Announce X.Y.0 feature releases, including X.0.0; skip patch releases.
   if (typeof version !== 'string' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.0$/.test(version)) {
@@ -37,6 +29,7 @@ router.post('/', async (req, res) => {
     const result = await NotificationModel.updateOne({ notificationId }, {
       $setOnInsert: {
         notificationId, userId: targetUserId, title, subtitle, content,
+        version, category: 'version',
         createdAt: new Date(), updatedAt: new Date(),
         startDate: start, endDate: end, isUnread: true, time: start.toISOString(),
       },

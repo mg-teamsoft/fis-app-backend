@@ -1,12 +1,17 @@
 import { nextNotificationMonth } from "../utils/notificationDates";
 import { Document, Schema, model, models } from "mongoose";
 
+export const NOTIFICATION_CATEGORIES = ['campaign', 'version', 'news', 'contactNotes'] as const;
+export type NotificationCategory = typeof NOTIFICATION_CATEGORIES[number];
+
 export interface NotificationDoc extends Document {
   notificationId: string;
   userId?: string | null;
   title: string;
   subtitle: string;
   content: string;
+  version?: string;
+  category?: NotificationCategory;
   time: string;
   actionType?: string | null;
   screen?: string | null;
@@ -24,6 +29,8 @@ const NotificationSchema = new Schema<NotificationDoc>(
     title: { type: String, required: true, trim: true },
     subtitle: { type: String, required: true, trim: true },
     content: { type: String, default: "" },
+    version: { type: String, required: false, trim: true },
+    category: { type: String, required: false, enum: NOTIFICATION_CATEGORIES },
     time: { type: String, required: true, trim: true },
     startDate: { type: Date, required: true, default: Date.now },
     endDate: {
